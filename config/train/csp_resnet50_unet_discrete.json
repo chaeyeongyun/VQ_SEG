@@ -1,0 +1,57 @@
+{   
+    "project_name":"VQ_CSP_Unet_resnet50_num30",
+    "wandb_logging":true,
+    "num_classes":3,
+    "pixel_to_label":{
+        "0":0,
+        "128":1,
+        "255":2
+    },
+    "resize":512,
+    "model":{
+        
+        "in_channels":3,
+        "discrete_encoder_weights":{
+            "encoder_weights":"../drive/MyDrive/self_supervised/CWFID/resnet50_vqvae10/ckpoints/200ep_backbone.pth",
+            "codebook_weights":"../drive/MyDrive/self_supervised/CWFID/resnet50_vqvae10/ckpoints/200ep_vq.pth"
+        },
+        "backbone":{
+            "name":"resnet50"
+        },
+        "seg_head":{
+            "name":"unet"
+        },
+        "codebook":{
+            "dim":2048,
+            "num_embeddings":2048,
+            "distance":"euclidean"
+        }
+    },
+    "train":{
+        "data_dir":"../data/semi_sup_data/CWFID/num30",
+        "save_dir":"../drive/MyDrive/semi_sup_train/CWFID",
+        "device":0,
+        "num_epochs":400,
+        "batch_size":4,
+        "learning_rate":1e-4,
+        "lr_scheduler":{
+            "name":"cosineannealing",
+            "min_lr":1e-8,
+            "warmup_steps":0
+        },
+        "half":true,
+        "init_weights":true,
+        "bn_eps":1e-5,
+        "bn_momentum":0.1,
+        "criterion":"cross_entropy",
+        "cps_loss_weight":1,
+        "resume":null,
+        "save_img":true,
+        "save_txt":true,
+        "save_graph":true,
+        "save_csv":true,
+        "wandb_config":["batch_size", "num_epochs"],
+        "wandb_log":["loss", "learning_rate", "miou", "sup_loss_1", "sup_loss_2", "cps_loss", "crop_iou", "weed_iou", "back_iou"],
+        "wandb_metrics":["loss", "miou"] 
+    }
+}

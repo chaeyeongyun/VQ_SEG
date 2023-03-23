@@ -41,9 +41,9 @@ class EuclideanCodebook(nn.Module):
         quantized = torch.matmul(embed_idx_onehot.float(), self.embedding.weight)
         
         # code_usage
-        e_mean = torch.mean(embed_idx_onehot.float(), dim=0)
-        # codebook이 사용되는 정도
-        code_usage = torch.exp(-torch.sum(e_mean * torch.log(e_mean + 1e-10)))
+        codebook_cnt = torch.bincount(embed_idx.reshape(-1), minlength=self.num_embeddings)
+        zero_cnt = (codebook_cnt == 0).sum()
+        code_usage = (zero_cnt / self.num_embeddings) * 100 # 낮을 수록 좋음
 
         return quantized, embed_idx, code_usage
         
