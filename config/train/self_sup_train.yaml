@@ -33,7 +33,7 @@ train:
     - loss
     - commitment_loss
     - recon_loss
-    - perplexity
+    - code_usage
     - learning_rate 
   wandb_metrics: 
     - loss

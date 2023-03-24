@@ -8,7 +8,7 @@ from tqdm import tqdm
 import argparse
 
 from utils.load_config import get_config_from_yaml
-from utils.logger import Logger
+from utils.logger import Logger, list_to_separate_log
 from utils.ckpoints import save_vqvae
 from utils.device import device_setting
 from utils.lr_schedulers import CosineAnnealingLR, WarmUpPolyLR
@@ -62,7 +62,7 @@ def train(cfg):
         model.train()
         recon_loss_sum, commitment_loss_sum, loss_sum = 0, 0, 0
         code_usage_sum = 0
-        batch_idx = 0
+        batch_idx = -1
         pbar = tqdm(dataloader)
         for input in pbar:
             batch_idx += 1
@@ -70,6 +70,8 @@ def train(cfg):
             optimizer.zero_grad()
             with torch.cuda.amp.autocast(enabled=half):
                 output, commitment_loss, code_usage = model(input)
+                if batch_idx == 0:
+                    sum_code_usage = torch.zeros_like(code_usage)
                 target = F.interpolate(input, size=output.shape[-2:], mode='bilinear')
                 recon_loss = F.mse_loss(output, target)
                 loss = recon_loss + commitment_loss
@@ -85,7 +87,7 @@ def train(cfg):
             recon_loss_sum += recon_loss.item()
             commitment_loss_sum += commitment_loss.item()
             loss_sum += loss.item()
-            code_usage_sum += code_usage.item()
+            code_usage_sum += code_usage
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx}/{len(dataloader)}] lr={learning_rate:.5f}" \
                             + f"recon_loss={recon_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}, loss={loss.item():.4f}, code_usage={code_usage.item()}"
             pbar.set_description(print_txt, refresh=False)
@@ -96,7 +98,7 @@ def train(cfg):
         recon_loss = recon_loss_sum/len(dataloader)
         commitment_loss = commitment_loss_sum/len(dataloader)
         loss = loss_sum/len(dataloader)
-        code_usage = code_usage_sum / len(dataloader)
+        code_usage = (sum_code_usage / len(dataloader)).tolist()
         print_txt = f"[Epoch{epoch}] recon_loss={recon_loss:.4f}, commitment_loss={commitment_loss:.4f}, loss={loss:.4f}"
         print(print_txt)
         if logger != None:
@@ -105,6 +107,8 @@ def train(cfg):
                 logger.config_dict[key] = eval(key)
             
             for key in logger.log_dict.keys():
+                if key=="code_usage":
+                    logger.temp_update(list_to_separate_log(l=eval(key), name=key))
                 logger.log_dict[key] = eval(key)
                 
             cat_img = make_selfsup_example(target.detach().cpu().numpy(), output.detach().cpu().numpy())
@@ -126,6 +130,6 @@ if __name__ == "__main__":
     cfg = get_config_from_yaml(opt.config_path)
     # debug
     cfg.resize=64
-    cfg.wandb_logging = False
+    # cfg.wandb_logging = False
     cfg.project_name = 'debug'
     train(cfg)
