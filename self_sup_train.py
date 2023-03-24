@@ -82,8 +82,6 @@ def train(cfg):
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-            learning_rate = optimizer.param_groups[0]['lr']
-            lr_scheduler.step()
             recon_loss_sum += recon_loss.item()
             commitment_loss_sum += commitment_loss.item()
             loss_sum += loss.item()
