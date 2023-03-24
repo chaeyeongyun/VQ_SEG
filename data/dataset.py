@@ -53,54 +53,16 @@ class BaseDataset(Dataset):
             return {'filename':filename, 'img':img}
         return {'filename':filename, 'img':img, 'target':target}
         
-class SemiSupDataset(Dataset):
-    def __init__(self, data_dir, resize=None) :
-        super().__init__()
-        self.img_dir = os.path.join(data_dir, 'input')
-        self.target_dir = os.path.join(data_dir, 'target')
-        all_imgs = os.listdir(self.img_dir)
-        self.targets = os.listdir(os.path.join(data_dir, 'target'))
-        self.unlab_imgs = list(set(all_imgs) - set(self.targets)) # unlabelled images
-        
-        self.resize = resize
+
+class FolderDataset(Dataset):
+    def __init__(self, data_dir, resize):
+        self.images = glob(os.path.join(data_dir, '*.png'))
+        self.resize  = (resize, resize) if isinstance(resize, int) else resize
     def __len__(self):
-        return len(self.targets) + len(self.unlab_imgs)
-    def __getitem__(self, index) :
-        target = self.targets[index]
-        unlab_img = Image.open(os.path.join(self.img_dir, self.unlab_imgs[index])).convert('RGB')
-        sup_img = Image.open(os.path.join(self.img_dir, target)).convert('RGB')
-        sup_target = Image.open(os.path.join(self.target_dir, target)).convert('L')
-        # to tensor
-        unlab_img = TF.to_tensor(unlab_img)
-        sup_img = TF.to_tensor(unlab_img)
-        sup_target = torch.from_numpy(np.array(sup_target))
-        
-        if self.resize is not None:
-            unlab_img = F.interpolate(unlab_img, self.resize, mode='bilinear')
-            sup_img = F.interpolate(sup_img, self.resize, mode='bilinear')
-            sup_target = F.interpolate(sup_target, self.resize, mode='bilinear')
-        # transforms
-        # if self.randomaug:
-            # aug = random.randint(0, 7)
-            # if aug==1:
-            #     input_img = input_img.flip(1)
-            #     target_img = target_img.flip(1)
-            # elif aug==2:
-            #     input_img = input_img.flip(2)
-            #     target_img = target_img.flip(2)
-            # elif aug==3:
-            #     input_img = torch.rot90(input_img,dims=(1,2))
-            #     target_img = torch.rot90(target_img,dims=(1,2))
-            # elif aug==4:
-            #     input_img = torch.rot90(input_img,dims=(1,2), k=2)
-            #     target_img = torch.rot90(target_img,dims=(1,2), k=2)
-            # elif aug==5:
-            #     input_img = torch.rot90(input_img,dims=(1,2), k=-1)
-            #     target_img = torch.rot90(target_img,dims=(1,2), k=-1)
-            # elif aug==6:
-            #     input_img = torch.rot90(input_img.flip(1),dims=(1,2))
-            #     target_img = torch.rot90(target_img.flip(1),dims=(1,2))
-            # elif aug==7:
-            #     input_img = torch.rot90(input_img.flip(2),dims=(1,2))
-            #     target_img = torch.rot90(target_img.flip(2),dims=(1,2))
-        return {"sup_img":sup_img, "sup_target":sup_target, "unlab_img":unlab_img}
+        return len(self.images)
+    
+    def __getitem__(self, index):
+        img = Image.open(self.images[index]).convert('RGB')
+        img = img.resize(self.resize, resample=Image.Resampling.BILINEAR)
+        img = TF.to_tensor(img)
+        return img

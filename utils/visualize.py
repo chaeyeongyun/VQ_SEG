@@ -47,3 +47,8 @@ def make_example_img(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray, ul_
 
 def save_img(img_dir:str, filename:str, img:np.ndarray):
     plt.imsave(os.path.join(img_dir, filename), img)
+    
+def make_selfsup_example(target:np.ndarray, recon:np.ndarray):
+    cat_img = np.concatenate((target.transpose(0, 2, 3, 1), recon.transpose(0, 2, 3, 1)), axis=2)
+    cat_img = np.squeeze(np.concatenate(np.split(cat_img, len(cat_img), axis=0), axis=1), axis=0)
+    return cat_img
