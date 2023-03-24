@@ -20,6 +20,6 @@ def load_ckpoints(weights_path, istrain:bool):
         return ckpoints['model_1']
     
 def save_vqvae(model:nn.Module, epoch, ckpoints_dir):
-    torch.save(model.backbone.state_dict(), os.path.join(ckpoints_dir, f'{epoch}ep_backbone.pth'))
-    torch.save(model.vq.state_dict(), os.path.join(ckpoints_dir, f'{epoch}ep_vq.pth'))
+    torch.save(model.encoder.state_dict(), os.path.join(ckpoints_dir, f'{epoch}ep_encoder.pth'))
+    torch.save(model.codebook.state_dict(), os.path.join(ckpoints_dir, f'{epoch}ep_codebook.pth'))
     torch.save(model.decoder.state_dict(), os.path.join(ckpoints_dir, f'{epoch}ep_decoder.pth'))

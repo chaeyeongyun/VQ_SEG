@@ -131,5 +131,5 @@ if __name__ == "__main__":
     # debug
     cfg.resize=64
     # cfg.wandb_logging = False
-    cfg.project_name = 'debug'
+    # cfg.project_name = 'debug'
     train(cfg)
