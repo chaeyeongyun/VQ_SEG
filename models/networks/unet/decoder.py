@@ -25,8 +25,7 @@ class UnetDecoder(nn.Module):
             prev_channels = decoder_channels[i]
         self.blocks = nn.ModuleList(blocks)
     
-    def forward(self, *features):
-        features = features[1:] # without input 
+    def forward(self, *features): 
         features = features[::-1] # reverse deep -> shallow
         cat_x = features[0]
         for i in range(len(self.blocks)-1):

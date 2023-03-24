@@ -11,7 +11,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 import models
-from utils.logger import Logger
+from utils.logger import Logger, list_to_separate_log
 from utils.ckpoints import  save_ckpoints, load_ckpoints
 from utils.load_config import get_config_from_json
 from utils.device import device_setting
@@ -41,7 +41,7 @@ def train(cfg):
     logger = Logger(cfg, logger_name) if cfg.wandb_logging else None
     
     half=cfg.train.half
-    if logger!=None:wandb.config.update(cfg.train)
+    if logger!=None:wandb.config.update(cfg)
     num_classes = cfg.num_classes
     batch_size = cfg.train.batch_size
     num_epochs = cfg.train.num_epochs
@@ -84,11 +84,13 @@ def train(cfg):
     
     # progress bar
     cps_loss_weight = cfg.train.cps_loss_weight
+    total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
     for epoch in range(num_epochs):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
         crop_iou, weed_iou, back_iou = 0, 0, 0
         sum_cps_loss, sum_sup_loss_1, sum_sup_loss_2 = 0, 0, 0
+        sum_commitment_loss = 0
         sum_loss = 0
         sum_miou = 0
         ep_start = time.time()
@@ -105,14 +107,14 @@ def train(cfg):
             l_target = l_target.to(device)
             ul_input = ul_input.to(device)
      
-            #TODO: return 형식에 맞춰서 바꾸기
             with torch.cuda.amp.autocast(enabled=half):
-                pred_sup_1 = model_1(l_input)['pred']
-                pred_sup_2 = model_2(l_input)['pred']
+                pred_sup_1, commitment_loss_l1, code_usage_l1 = model_1(l_input)
+                pred_sup_2, commitment_loss_l2, code_usage_l2 = model_2(l_input)
                 ## predict in unsupervised manner ##
-                pred_ul_1 = model_1(ul_input)['pred']
-                pred_ul_2 = model_2(ul_input)['pred']
-            
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1 = model_1(ul_input)
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2 = model_2(ul_input)
+                if batch_idx == 0:
+                    sum_code_usage = torch.zeros_like(code_usage_l1)
             ## cps loss ##
             pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
             pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
@@ -128,6 +130,8 @@ def train(cfg):
                 sup_loss_2 = criterion(pred_sup_2, l_target)
                 sup_loss = sup_loss_1 + sup_loss_2
                 
+                commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
+                
                 ## learning rate update
                 current_idx = epoch * len(unsup_loader) + batch_idx
                 learning_rate = lr_scheduler.get_lr(current_idx)
@@ -135,8 +139,9 @@ def train(cfg):
                 optimizer_1.param_groups[0]['lr'] = learning_rate
                 optimizer_2.param_groups[0]['lr'] = learning_rate
                 
-                loss = sup_loss + cps_loss_weight*cps_loss
-            
+                loss = sup_loss + cps_loss_weight*cps_loss + total_commitment_loss_weight*commitment_loss
+                sum_code_usage += (code_usage_l1 + code_usage_l2 + code_usage_ul1 + code_usage_ul2) / 4 
+                
             scaler.scale(loss).backward()
             scaler.step(optimizer_1)
             scaler.step(optimizer_2)
@@ -149,25 +154,29 @@ def train(cfg):
             sum_cps_loss += cps_loss.item()
             sum_sup_loss_1 += sup_loss_1.item()
             sum_sup_loss_2 += sup_loss_2.item()
+            sum_commitment_loss += commitment_loss.item()
             back_iou += iou_list[0]
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
-            print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.2f}" \
+            print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
                             + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
         
         ## end epoch ## 
+        code_usage = (sum_code_usage / len(unsup_loader)).tolist()
+        if isinstance(code_usage, float): code_usage = [code_usage]
         back_iou, weed_iou, crop_iou = back_iou / len(unsup_loader), weed_iou / len(unsup_loader), crop_iou / len(unsup_loader)
         cps_loss = sum_cps_loss / len(unsup_loader)
         sup_loss_1 = sum_sup_loss_1 / len(unsup_loader)
         sup_loss_2 = sum_sup_loss_2 / len(unsup_loader)
+        commitment_loss = sum_commitment_loss / len(unsup_loader)
         loss = loss / len(unsup_loader)
         miou = sum_miou / len(unsup_loader)
         
         print_txt = f"[Epoch{epoch}]" \
-                            + f"miou=miou, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
+                            + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
         print(print_txt)
         if logger != None:
             log_txt.write(print_txt)
@@ -188,10 +197,10 @@ def train(cfg):
             # wandb logging
             for key in logger.config_dict.keys():
                 logger.config_dict[key] = eval(key)
-            
             for key in logger.log_dict.keys():
-                logger.log_dict[key] = eval(key)
-            
+                if key=="code_usage":
+                    logger.temp_update(list_to_separate_log(l=eval(key), name=key))
+                else:logger.log_dict[key] = eval(key)
             
             logger.logging(epoch=epoch)
             logger.config_update()
@@ -199,10 +208,10 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/train/vgg16_unet_csp_barlow.json')
+    parser.add_argument('--config_path', default='./config/train/cps_vqv1.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
-    #debug
+    # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
     train(cfg)

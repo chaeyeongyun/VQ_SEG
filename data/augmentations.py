@@ -3,8 +3,6 @@ import torch
 import numpy as np
 import random
 
-
-#TODO: 
 def augmentation(input:torch.Tensor, label:torch.Tensor, logits:torch.Tensor, aug_cfg:dict):
     batch_size = input.shape[0]
     input_aug, label_aug, logits_aug = [], [], []
@@ -65,10 +63,3 @@ class CutMix():
         mixed = [(input[i]*mask + input[(i+1)%batch_size]*(1-mask)).unsqueeze(0) for i in range(batch_size)]
         mixed = torch.cat(mixed, dim=0)
         return mixed
-###############
-aug_dict = {
-    "cutmix":CutMix
-}
-def make_aug(aug_cfg):
-    aug_name = aug_cfg.pop("name")
-    return aug_dict[aug_name](**aug_cfg)

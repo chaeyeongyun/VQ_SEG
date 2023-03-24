@@ -1,4 +1,6 @@
+import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 def pred_to_colormap(pred:np.ndarray, colormap:np.ndarray):
     pred_label = np.argmax(pred, axis=1) # (N, H, W)

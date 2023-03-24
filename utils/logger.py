@@ -30,12 +30,21 @@ class Logger():
             self.log_dict[key] = None
         
         self.img_dict = None
+        self.table_dict = None
+        self.temp_dict = None
             
     def logging(self, epoch):
+        log_dict = self.log_dict.copy()
         if self.img_dict:
-            wandb.log(dict(self.log_dict, **self.img_dict), step=epoch)
-        else:
-            wandb.log(self.log_dict, step=epoch)
+            log_dict = dict(self.log_dict, **self.img_dict) 
+            
+        if self.table_dict:
+            log_dict = dict(self.log_dict, **self.table_dict) 
+        
+        if self.temp_dict:
+            log_dict = dict(self.log_dict, **self.temp_dict)
+            
+        wandb.log(log_dict, step=epoch)
 
     def config_update(self):
         wandb.config.update(self.config_dict, allow_val_change=True)
@@ -44,7 +53,19 @@ class Logger():
         img = wandb.Image(image, mode='RGB', caption=caption)
         # wandb.log({'examples':img})
         self.img_dict = {'example':img}
+    
+    def table_update(self, name:str, columns:List, data:List):
+        table = wandb.Table(columns=columns, data=data)
+        self.table_dict = {name: table}
+    
+    def temp_update(self, d:dict):
+        self.temp_dict = d
     # def end(self, summary_dict):
     #     for key, value in summary_dict.items():
     #         wandb.run.summary[key] = value
 
+def list_to_separate_log(l:List, name):
+    output = dict()
+    for i, item in enumerate(l):
+        output[f'{name}_{i}'] = item
+    return output

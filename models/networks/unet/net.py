@@ -20,8 +20,8 @@ class VQUnet_v1(nn.Module):
         super().__init__()
         
         self.encoder = make_encoder(encoder_name, in_channels, depth)    
-        self.codebook = VectorQuantizer(**vq_cfg)
         encoder_channels = self.encoder.out_channels()
+        self.codebook = VectorQuantizer(**vq_cfg, dim=encoder_channels[-1])
         if decoder_channels == None:
             decoder_channels = [i//2 for i in encoder_channels[1:]] 
             decoder_channels = decoder_channels[::-1]
@@ -33,7 +33,7 @@ class VQUnet_v1(nn.Module):
                                                   activation=activation,
                                                   kernel_size=3)
     def forward(self, x):
-        features = self.encoder(x)
+        features = self.encoder(x)[1:]
         quantize, _embed_index, commitment_loss, code_usage = self.codebook(features[-1]) 
         features[-1] = quantize
         decoder_out = self.decoder(*features)
@@ -55,9 +55,9 @@ class VQUnet_v2(nn.Module):
         super().__init__()
         
         self.encoder = make_encoder(encoder_name, in_channels, depth)    
-        self.codebooks = nn.ModuleList([VectorQuantizer(**vq_cfg)]*depth)
-        
         encoder_channels = self.encoder.out_channels()
+        self.codebooks = nn.ModuleList([VectorQuantizer(**vq_cfg, dim=encoder_channels[i+1])for i in range(depth)])
+        
         if decoder_channels == None:
             decoder_channels = [i//2 for i in encoder_channels[1:]] 
             decoder_channels = decoder_channels[::-1]
@@ -69,12 +69,20 @@ class VQUnet_v2(nn.Module):
                                                   activation=activation,
                                                   kernel_size=3)
     def forward(self, x):
-        features = self.encoder(x)
-        # TODO: 모든 피쳐 commitment sum 합치는 부분. VQVQE2 참고
-        # commitment_loss_sum = 
-        for i in len(features):
+        features = self.encoder(x)[1:]
+        if len(features) != len(self.codebooks) : raise NotImplementedError
+        
+        loss = torch.tensor([0.], device=x.device, requires_grad=self.training)
+        code_usage_lst = []
+        for i in range(len(features)):
             quantize, _embed_index, commitment_loss, code_usage = self.codebooks[i](features[i])
             features[i] = quantize
+            # sum
+            loss = loss + commitment_loss
+            
+            code_usage_lst.append(code_usage.detach().cpu())
+        # mean
+        loss = loss / len(features)
         decoder_out = self.decoder(*features)
         output = self.segmentation_head(decoder_out)
-        return output, commitment_loss, code_usage
+        return output, loss, torch.tensor(code_usage_lst)
