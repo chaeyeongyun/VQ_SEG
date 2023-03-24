@@ -54,7 +54,7 @@ def train(cfg):
                                     warmup_steps=len(dataloader)*cfg.lr_sched_cfg.warmup_epoch)
     elif cfg.train.lr_scheduler.name == 'cosineannealing':
         lr_sched_cfg = cfg.train.lr_scheduler
-        lr_scheduler = CosineAnnealingLR(start_lr = cfg.train.learning_rate, min_lr=lr_sched_cfg.min_lr, total_iters=len(unsup_loader)*num_epochs, warmup_steps=lr_sched_cfg.warmup_steps)
+        lr_scheduler = CosineAnnealingLR(start_lr = cfg.train.learning_rate, min_lr=lr_sched_cfg.min_lr, total_iters=len(dataloader)*num_epochs, warmup_steps=lr_sched_cfg.warmup_steps)
 
     scaler = torch.cuda.amp.GradScaler(enabled=half)
     print_txt=''
