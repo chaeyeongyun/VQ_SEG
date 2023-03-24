@@ -89,7 +89,7 @@ def train(cfg):
             loss_sum += loss.item()
             code_usage_sum += code_usage
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx}/{len(dataloader)}] lr={learning_rate:.5f}" \
-                            + f"recon_loss={recon_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}, loss={loss.item():.4f}, code_usage={code_usage.item()}"
+                            + f"recon_loss={recon_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}, loss={loss.item():.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
