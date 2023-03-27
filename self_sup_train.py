@@ -60,11 +60,11 @@ def train(cfg):
     for epoch in range(num_epochs):
         model.train()
         recon_loss_sum, commitment_loss_sum, loss_sum = 0, 0, 0
-        code_usage_sum = 0
-        batch_idx = -1
+        
+        # pbar = tqdm(range(len(dataloader)))
         pbar = tqdm(dataloader)
-        for input in pbar:
-            batch_idx += 1
+        for batch_idx, input in enumerate(pbar):
+            # input = next(dataloader)
             input = input.to(device)
             optimizer.zero_grad()
             with torch.cuda.amp.autocast(enabled=half):
@@ -86,7 +86,7 @@ def train(cfg):
             recon_loss_sum += recon_loss.item()
             commitment_loss_sum += commitment_loss.item()
             loss_sum += loss.item()
-            code_usage_sum += code_usage
+            sum_code_usage += code_usage
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx}/{len(dataloader)}] lr={learning_rate:.5f}" \
                             + f"recon_loss={recon_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}, loss={loss.item():.4f}"
             pbar.set_description(print_txt, refresh=False)
@@ -108,7 +108,8 @@ def train(cfg):
             for key in logger.log_dict.keys():
                 if key=="code_usage":
                     logger.temp_update(list_to_separate_log(l=eval(key), name=key))
-                logger.log_dict[key] = eval(key)
+                else:
+                    logger.log_dict[key] = eval(key)
                 
             cat_img = make_selfsup_example(target.detach().cpu().numpy(), output.detach().cpu().numpy())
             if cfg.train.save_img: save_img(img_dir, f'output_{epoch}ep.png', cat_img)
@@ -128,7 +129,7 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_yaml(opt.config_path)
     # debug
-    # cfg.resize=64
-    # cfg.wandb_logging = True
-    # cfg.project_name = 'debug'
+    cfg.resize=64
+    cfg.wandb_logging = True
+    cfg.project_name = 'debug'
     train(cfg)
