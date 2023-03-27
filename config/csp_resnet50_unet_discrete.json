@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQ_CSP_Unet_resnet50_num30",
+    "project_name":"VQUnetv1_VQVAE_weights",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{

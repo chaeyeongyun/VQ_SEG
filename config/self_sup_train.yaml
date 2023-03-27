@@ -1,4 +1,4 @@
-project_name: VQVAE_v2
+project_name: VQUNetv2_selfsupervision
 
 wandb_logging: True
 

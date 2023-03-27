@@ -25,13 +25,13 @@ class BaseLogger():
     def logging(self, epoch):
         log_dict = self.log_dict.copy()
         if self.img_dict:
-            log_dict = dict(self.log_dict, **self.img_dict) 
+            log_dict = dict(log_dict, **self.img_dict) 
             
         if self.table_dict:
-            log_dict = dict(self.log_dict, **self.table_dict) 
+            log_dict = dict(log_dict, **self.table_dict) 
         
         if self.temp_dict:
-            log_dict = dict(self.log_dict, **self.temp_dict)
+            log_dict = dict(log_dict, **self.temp_dict)
             
         wandb.log(log_dict, step=epoch)
 

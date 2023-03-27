@@ -35,7 +35,6 @@ def train(cfg):
     else : logger = None
     
     half=cfg.train.half
-    if logger!=None:wandb.config.update(cfg)
     batch_size = cfg.train.batch_size
     num_epochs = cfg.train.num_epochs
     device = device_setting(cfg.train.device)
@@ -125,11 +124,11 @@ def train(cfg):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/train/self_sup_train.yaml')
+    parser.add_argument('--config_path', default='./config/self_sup_train.yaml')
     opt = parser.parse_args()
     cfg = get_config_from_yaml(opt.config_path)
     # debug
-    cfg.resize=64
-    cfg.wandb_logging = True
-    cfg.project_name = 'debug'
+    # cfg.resize=64
+    # cfg.wandb_logging = True
+    # cfg.project_name = 'debug'
     train(cfg)

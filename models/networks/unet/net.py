@@ -56,7 +56,7 @@ class VQUnet_v2(nn.Module):
         
         self.encoder = make_encoder(encoder_name, in_channels, depth)    
         encoder_channels = self.encoder.out_channels()
-        self.codebooks = nn.ModuleList([VectorQuantizer(**vq_cfg, dim=encoder_channels[i+1])for i in range(depth)])
+        self.codebook = nn.ModuleList([VectorQuantizer(**vq_cfg, dim=encoder_channels[i+1])for i in range(depth)])
         
         if decoder_channels == None:
             decoder_channels = [i//2 for i in encoder_channels[1:]] 
@@ -70,12 +70,12 @@ class VQUnet_v2(nn.Module):
                                                   kernel_size=3)
     def forward(self, x):
         features = self.encoder(x)[1:]
-        if len(features) != len(self.codebooks) : raise NotImplementedError
+        if len(features) != len(self.codebook) : raise NotImplementedError
         
         loss = torch.tensor([0.], device=x.device, requires_grad=self.training)
         code_usage_lst = []
         for i in range(len(features)):
-            quantize, _embed_index, commitment_loss, code_usage = self.codebooks[i](features[i])
+            quantize, _embed_index, commitment_loss, code_usage = self.codebook[i](features[i])
             features[i] = quantize
             # sum
             loss = loss + commitment_loss
