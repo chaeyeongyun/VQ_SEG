@@ -1,8 +1,7 @@
 import torch
-from models.networks import VQUnet_v1
+from models.networks import VQUnet_v1, VQVAEv2
 if __name__ == '__main__':
-    model = VQUnet_v1('resnet50', 3, {
-                "dim":2048,
+    model = VQVAEv2('resnet50', {
                 "num_embeddings":2048,
                 "distance":"euclidean"
             })

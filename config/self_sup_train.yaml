@@ -5,10 +5,9 @@ wandb_logging: True
 resize: 512
 
 model: 
-  name: vqunet_v2
+  name: vqvaev2
   params:
     encoder_name: resnet50
-    num_classes: 3
     vq_cfg:
       num_embeddings: 512
       distance: euclidean

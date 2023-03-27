@@ -52,6 +52,6 @@
         "save_dir":"../drive/MyDrive/semi_sup_test/CWFID",
         "device":0,
         "batch_size":1,
-        "weights":"../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v190/ckpoints"
+        "weights":"../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v214/ckpoints"
     }
 }
