@@ -60,7 +60,6 @@ def train(cfg):
     for epoch in range(num_epochs):
         model.train()
         recon_loss_sum, commitment_loss_sum, loss_sum = 0, 0, 0
-        code_usage_sum = 0
         batch_idx = -1
         pbar = tqdm(dataloader)
         for input in pbar:
@@ -86,7 +85,7 @@ def train(cfg):
             recon_loss_sum += recon_loss.item()
             commitment_loss_sum += commitment_loss.item()
             loss_sum += loss.item()
-            code_usage_sum += code_usage
+            sum_code_usage += code_usage
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx}/{len(dataloader)}] lr={learning_rate:.5f}" \
                             + f"recon_loss={recon_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}, loss={loss.item():.4f}"
             pbar.set_description(print_txt, refresh=False)
