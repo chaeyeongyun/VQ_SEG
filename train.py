@@ -41,7 +41,7 @@ def train(cfg):
     logger = Logger(cfg, logger_name) if cfg.wandb_logging else None
     
     half=cfg.train.half
-    if logger!=None:wandb.config.update(cfg)
+    
     num_classes = cfg.num_classes
     batch_size = cfg.train.batch_size
     num_epochs = cfg.train.num_epochs
