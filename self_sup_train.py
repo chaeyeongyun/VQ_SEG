@@ -129,7 +129,7 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_yaml(opt.config_path)
     # debug
-    cfg.resize=64
-    cfg.wandb_logging = True
-    cfg.project_name = 'debug'
+    # cfg.resize=64
+    # cfg.wandb_logging = True
+    # cfg.project_name = 'debug'
     train(cfg)
