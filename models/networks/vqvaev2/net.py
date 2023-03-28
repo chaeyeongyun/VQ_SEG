@@ -48,3 +48,43 @@ class VQVAEv2(nn.Module):
         
         return output, loss, torch.tensor(code_usage_lst)
     
+class VQVAEv1(nn.Module):
+    def __init__(
+        self,
+        encoder_name:str,
+        vq_cfg:dict,
+        in_channels:int=3,
+        out_channels:int=3,
+        hidden_channels:int=32,
+        n_resblocks=2,
+        n_res_channels=32,
+        depth:int=5,
+        stride=2):
+        super().__init__()
+        self.encoder = make_encoder(encoder_name, in_channels, depth)
+        encoder_channels = self.encoder.out_channels()[1:]
+        self.codebook = VectorQuantizer(**vq_cfg, dim=encoder_channels[-1])
+        self.decoder = VQVAEDecoder(in_channels=encoder_channels[-1], out_channels=out_channels, 
+                                    hidden_channels=hidden_channels, 
+                                    n_resblocks=n_resblocks, 
+                                    n_res_channels=n_res_channels,
+                                    stride=stride)
+    
+    def forward(self, x):
+        features = self.encoder(x)[1:]
+        if len(features) != len(self.codebook) : raise NotImplementedError
+        loss = torch.tensor([0.], device=x.device, requires_grad=self.training)
+        code_usage_lst = []
+       
+        quantize, _embed_index, commitment_loss, code_usage = self.codebook(features[-1])
+        features[-1] = quantize
+        # sum
+        loss = loss + commitment_loss
+        
+        code_usage_lst.append(code_usage.detach().cpu())
+        # mean
+        loss = loss / len(features)
+        
+        output = self.decoder(features[-1])
+        
+        return output, loss, torch.tensor(code_usage_lst)

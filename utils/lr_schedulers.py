@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 import math
+import torch
 
 class BaseLR():
     __metaclass__ = ABCMeta
@@ -31,3 +32,5 @@ class CosineAnnealingLR(BaseLR):
     def get_lr(self, cur_iter):
         return self.min_lr + 0.5 * (self.start_lr - self.min_lr) * \
             (1+math.cos(math.pi * cur_iter / (self.total_iters - self.warmup_steps)))
+
+    

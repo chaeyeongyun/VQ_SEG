@@ -50,7 +50,12 @@ def train(cfg):
     
     model_1 = models.networks.make_model(cfg.model).to(device)
     model_2 = models.networks.make_model(cfg.model).to(device)
-    
+    if cfg.train.get("pretrained", None):
+        model_1.load_pretrained(cfg.train.pretrained.encoder, cfg.train.pretrained.codebook)
+        model_2.load_pretrained(cfg.train.pretrained.encoder, cfg.train.pretrained.codebook)
+        model_1.freeze_encoder()
+        model_2.freeze_encoder()
+        
     # initialize differently (segmentation head)
     if cfg.train.init_weights:
         models.init_weight([model_1.decoder, model_1.segmentation_head], nn.init.kaiming_normal_,
@@ -78,8 +83,9 @@ def train(cfg):
         lr_sched_cfg = cfg.train.lr_scheduler
         lr_scheduler = CosineAnnealingLR(start_lr = cfg.train.learning_rate, min_lr=lr_sched_cfg.min_lr, total_iters=len(unsup_loader)*num_epochs, warmup_steps=lr_sched_cfg.warmup_steps)
     
-    optimizer_1 = torch.optim.Adam(model_1.parameters(), lr=cfg.train.learning_rate, betas=(0.9, 0.999))
-    optimizer_2 = torch.optim.Adam(model_2.parameters(), lr=cfg.train.learning_rate, betas=(0.9, 0.999))
+    
+    optimizer_1 = torch.optim.Adam(model_1.decoder.parameters(), lr=cfg.train.learning_rate, betas=(0.9, 0.999))
+    optimizer_2 = torch.optim.Adam(model_2.decoder.parameters(), lr=cfg.train.learning_rate, betas=(0.9, 0.999))
         
     
     # progress bar
@@ -194,6 +200,14 @@ def train(cfg):
                             optimizer_1.state_dict(),
                             optimizer_2.state_dict(),
                             os.path.join(ckpoints_dir, f"{epoch}ep.pth"))
+            
+            save_ckpoints(model_1.state_dict(),
+                        model_2.state_dict(),
+                        epoch,
+                        batch_idx,
+                        optimizer_1.state_dict(),
+                        optimizer_2.state_dict(),
+                        os.path.join(ckpoints_dir, f"last.pth"))
             # wandb logging
             for key in logger.config_dict.keys():
                 logger.config_dict[key] = eval(key)
@@ -208,7 +222,7 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/train/cps_vqv1.json')
+    parser.add_argument('--config_path', default='./config/cps_vqv1.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug

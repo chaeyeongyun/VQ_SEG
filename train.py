@@ -194,6 +194,13 @@ def train(cfg):
                             optimizer_1.state_dict(),
                             optimizer_2.state_dict(),
                             os.path.join(ckpoints_dir, f"{epoch}ep.pth"))
+            save_ckpoints(model_1.state_dict(),
+                        model_2.state_dict(),
+                        epoch,
+                        batch_idx,
+                        optimizer_1.state_dict(),
+                        optimizer_2.state_dict(),
+                        os.path.join(ckpoints_dir, f"last.pth"))
             # wandb logging
             for key in logger.config_dict.keys():
                 logger.config_dict[key] = eval(key)

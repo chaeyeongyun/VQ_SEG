@@ -4,7 +4,7 @@ from models.networks.unet.decoder import UnetDecoder
 from models.encoders import make_encoder
 from models.modules.segmentation_head import SegmentationHead
 from vector_quantizer.vq_img import VectorQuantizer
-
+ 
 class VQUnet_v1(nn.Module):
     def __init__(
         self, 
@@ -40,6 +40,21 @@ class VQUnet_v1(nn.Module):
         output = self.segmentation_head(decoder_out)
         return output, commitment_loss, code_usage
 
+    def load_pretrained(self, encoder_weights_path, codebook_weights_path):
+        print(f"... load pretrained weights ... \nencoder:{encoder_weights_path}, codebook:{codebook_weights_path}")
+        encoder_weights = torch.load(encoder_weights_path)
+        codebook_weights = torch.load(codebook_weights_path)
+        self.encoder.load_state_dict(encoder_weights)
+        self.codebook.load_state_dict(codebook_weights)
+    
+    def freeze_encoder(self):
+        for param in self.encoder.parameters():
+            param.requires_grad = False
+        
+        for param in self.codebook.parameters():
+            param.requires_grad = False
+        
+        
 class VQUnet_v2(nn.Module):
     def __init__(
         self, 
@@ -86,3 +101,17 @@ class VQUnet_v2(nn.Module):
         decoder_out = self.decoder(*features)
         output = self.segmentation_head(decoder_out)
         return output, loss, torch.tensor(code_usage_lst)
+    
+    def load_pretrained(self, encoder_weights_path, codebook_weights_path):
+        print(f"... load pretrained weights ... \nencoder:{encoder_weights_path}, codebook:{codebook_weights_path}")
+        encoder_weights = torch.load(encoder_weights_path)
+        codebook_weights = torch.load(codebook_weights_path)
+        self.encoder.load_state_dict(encoder_weights)
+        self.codebook.load_state_dict(codebook_weights)
+    
+    def freeze_encoder(self):
+        for param in self.encoder.parameters():
+            param.requires_grad = False
+        
+        for param in self.codebook.parameters():
+            param.requires_grad = False
