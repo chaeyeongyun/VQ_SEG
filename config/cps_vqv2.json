@@ -14,7 +14,7 @@
             "encoder_name":"resnet50",
             "num_classes":3,
             "vq_cfg":{
-                "num_embeddings":512,
+                "num_embeddings":2048,
                 "distance":"euclidean"
                 }
             }
