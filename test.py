@@ -147,7 +147,7 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/cps_vqv2.json')
+    parser.add_argument('--config_path', default='./config/cps_vqv1.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     
