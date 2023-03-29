@@ -9,7 +9,7 @@ import argparse
 
 from utils.load_config import get_config_from_yaml
 from utils.logger import Logger, list_to_separate_log
-from utils.ckpoints import save_vqvae
+from utils.ckpoints import save_vqvae, save_tar
 from utils.device import device_setting
 from utils.lr_schedulers import CosineAnnealingLR, WarmUpPolyLR
 from utils.visualize import save_img, make_selfsup_example
@@ -122,6 +122,8 @@ def train(cfg):
             logger.config_update()
             
     if logger != None: log_txt.close()
+    if cfg.train.save_as_tar:
+        save_tar(save_dir)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 import models
 from utils.logger import Logger, list_to_separate_log
-from utils.ckpoints import  save_ckpoints, load_ckpoints
+from utils.ckpoints import  save_ckpoints, load_ckpoints, save_tar
 from utils.load_config import get_config_from_json
 from utils.device import device_setting
 from utils.processing import detach_numpy
@@ -212,6 +212,8 @@ def train(cfg):
             logger.logging(epoch=epoch)
             logger.config_update()
     if logger != None: log_txt.close()
+    if cfg.train.save_as_tar:
+        save_tar(save_dir)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

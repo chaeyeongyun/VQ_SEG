@@ -16,7 +16,7 @@ from utils.ckpoints import  save_ckpoints, load_ckpoints
 from utils.load_config import get_config_from_json
 from utils.device import device_setting
 from utils.processing import detach_numpy
-from utils.visualize import make_example_img, save_img
+from utils.visualize import make_example_img, save_img, save_tar
 from utils.seg_tools import img_to_label
 from utils.lr_schedulers import WarmUpPolyLR, CosineAnnealingLR
 
@@ -219,6 +219,8 @@ def train(cfg):
             logger.logging(epoch=epoch)
             logger.config_update()
     if logger != None: log_txt.close()
+    if cfg.train.save_as_tar:
+        save_tar(save_dir)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

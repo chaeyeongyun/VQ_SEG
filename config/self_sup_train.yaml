@@ -16,6 +16,7 @@ train:
   data_dir: ../data/semi_sup_data/CWFID/num30/train/input
   save_dir: ../drive/MyDrive/self_supervised/CWFID
   save_img: False
+  save_as_tar: False
   half: True
   num_epochs: 1200
   batch_size: 32
