@@ -221,7 +221,7 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    # cfg.resize=32
+    # cfg.resize=512
     # cfg.project_name = 'debug'
     # torch.autograd.set_detect_anomaly(True)
     cfg.train.half = False

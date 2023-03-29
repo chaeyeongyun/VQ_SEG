@@ -36,7 +36,3 @@ class UnetDecoder(nn.Module):
         output = self.blocks[-1](cat_x)
         return output
             
-if __name__ == '__main__':
-    x = double_conv_block(3, 32, 3)
-    a=1
-        
