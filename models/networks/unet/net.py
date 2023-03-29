@@ -32,13 +32,16 @@ class VQUnet_v1(nn.Module):
                                                   upsampling=upsampling,
                                                   activation=activation,
                                                   kernel_size=3)
-    def forward(self, x):
+    def forward(self, x, code_usage_loss):
         features = self.encoder(x)[1:]
         quantize, _embed_index, commitment_loss, code_usage = self.codebook(features[-1]) 
         features[-1] = quantize
         decoder_out = self.decoder(*features)
         output = self.segmentation_head(decoder_out)
-        return output, commitment_loss, code_usage
+        if code_usage_loss: 
+            usage_loss = code_usage
+            return output, commitment_loss, code_usage.detach().cpu(), usage_loss
+        return output, commitment_loss, code_usage.detach().cpu()
 
     def load_pretrained(self, encoder_weights_path, codebook_weights_path):
         print(f"... load pretrained weights ... \nencoder:{encoder_weights_path}, codebook:{codebook_weights_path}")
@@ -83,23 +86,27 @@ class VQUnet_v2(nn.Module):
                                                   upsampling=upsampling,
                                                   activation=activation,
                                                   kernel_size=3)
-    def forward(self, x):
+    def forward(self, x, code_usage_loss=False):
         features = self.encoder(x)[1:]
         if len(features) != len(self.codebook) : raise NotImplementedError
         
         loss = torch.tensor([0.], device=x.device, requires_grad=self.training)
         code_usage_lst = []
+        if code_usage_loss : usage_loss = torch.tensor([0.], device=x.device, requires_grad=self.training)
         for i in range(len(features)):
             quantize, _embed_index, commitment_loss, code_usage = self.codebook[i](features[i])
             features[i] = quantize
             # sum
             loss = loss + commitment_loss
-            
+            if code_usage_loss : usage_loss = usage_loss + code_usage
             code_usage_lst.append(code_usage.detach().cpu())
         # mean
         loss = loss / len(features)
         decoder_out = self.decoder(*features)
         output = self.segmentation_head(decoder_out)
+        if code_usage_loss : 
+            usage_loss = usage_loss / len(features)
+            return output, loss, torch.tensor(code_usage_lst), usage_loss
         return output, loss, torch.tensor(code_usage_lst)
     
     def load_pretrained(self, encoder_weights_path, codebook_weights_path):
