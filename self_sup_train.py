@@ -134,9 +134,9 @@ if __name__ == "__main__":
     # cfg.resize=64
     # cfg.wandb_logging = True
     # cfg.project_name = 'debug'
-    cfg.resize=256
-    cfg.train.half=False
-    train(cfg)
+    # cfg.resize=256
+    # cfg.train.half=False
+    # train(cfg)
     
     num_embeddings = [2048, 4096]
     cfg.resize=512
