@@ -122,6 +122,7 @@ def train(cfg):
             pseudo_1 = torch.argmax(pred_1, dim=1).long()
             pseudo_2 = torch.argmax(pred_2, dim=1).long()
             
+            
             with torch.cuda.amp.autocast(enabled=half):
                 ## cps loss
                 cps_loss = criterion(pred_1, pseudo_2) + criterion(pred_2, pseudo_1)

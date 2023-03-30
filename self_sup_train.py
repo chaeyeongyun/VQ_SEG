@@ -134,4 +134,10 @@ if __name__ == "__main__":
     # cfg.resize=64
     # cfg.wandb_logging = True
     # cfg.project_name = 'debug'
+    cfg.train.half=False
     train(cfg)
+    num_embeddings = [2048, 4096]
+    cfg.train.half=True
+    for num in num_embeddings:
+        cfg.model.params.vq_cfg.num_embeddings=num
+        train(cfg)
