@@ -137,7 +137,7 @@ if __name__ == "__main__":
     # train(cfg)
     
     num_embeddings = [2048, 4096]
-    cfg.resize=512
+    cfg.resize=256
     cfg.train.half=True
     for num in num_embeddings:
         cfg.model.params.vq_cfg.num_embeddings=num
