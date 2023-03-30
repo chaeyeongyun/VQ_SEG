@@ -125,7 +125,7 @@ def train(cfg):
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/self_sup_train.yaml')
+    parser.add_argument('--config_path', default='./config/self_sup_train_v2.yaml')
     opt = parser.parse_args()
     cfg = get_config_from_yaml(opt.config_path)
     # debug
