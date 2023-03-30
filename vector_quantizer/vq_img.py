@@ -85,11 +85,12 @@ class VectorQuantizer(nn.Module):
             eps = eps)
         
     def forward(self, x):
+        x = x.to(torch.float32)
         x_shape, device = x.shape, x.device
         x_h, x_w = x.shape[-2:]
         x = rearrange(x, 'b c h w -> b (h w) c') # (B, HxW, C)
         quantize, embed_idx, code_usage = self.codebook(x)
-        loss = torch.tensor([0.], device=device, requires_grad=self.training)
+        loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
         if self.training:
             quantize = x + (quantize - x).detach() # preserve gradients
             if self.commitment_weight > 0:

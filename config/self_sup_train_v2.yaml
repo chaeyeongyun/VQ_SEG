@@ -1,0 +1,40 @@
+project_name: VQUNetv2_selfsupervision
+
+wandb_logging: True
+
+resize: 512
+
+model: 
+  name: vqvaev2
+  params:
+    encoder_name: resnet50
+    vq_cfg:
+      num_embeddings: 512
+      distance: euclidean
+
+train:
+  data_dir: ../data/semi_sup_data/CWFID/num30/train/input
+  save_dir: ../drive/MyDrive/self_supervised/CWFID
+  save_img: False
+  save_as_tar: True
+  half: True
+  num_epochs: 1200
+  batch_size: 32
+  device: 0
+  learning_rate: 1.e-3 # float
+  lr_scheduler: 
+    name: cosineannealing
+    min_lr: 1.e-8
+    warmup_steps: 0
+  wandb_config: 
+    - batch_size
+    - num_epochs
+  wandb_log: 
+    - loss
+    - commitment_loss
+    - recon_loss
+    - code_usage
+    - learning_rate 
+  wandb_metrics: 
+    - loss
+    - code_usage 

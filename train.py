@@ -224,4 +224,6 @@ if __name__ == "__main__":
     # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
+    cfg.train.half=False
+    cfg.resize = 256
     train(cfg)

@@ -32,7 +32,7 @@ class VQUnet_v1(nn.Module):
                                                   upsampling=upsampling,
                                                   activation=activation,
                                                   kernel_size=3)
-    def forward(self, x, code_usage_loss):
+    def forward(self, x, code_usage_loss=False):
         features = self.encoder(x)[1:]
         quantize, _embed_index, commitment_loss, code_usage = self.codebook(features[-1]) 
         features[-1] = quantize
