@@ -62,10 +62,12 @@ def test(cfg):
         best_result = None
         for weights in weights_list:
             result = test_loop(model, weights, num_classes, pixel_to_label_map, testloader, device)
+            if result == None: continue
             if result.metrics.test_miou >= best_miou:
                 best_miou = result.metrics.test_miou
                 best_result = result
     
+    assert best_result != None, "weights file has some problem"
     f.write(best_result.result_txt)
     save_img_list(img_dir, make_filename(best_result.visualize.filename, "_v1"), best_result.visualize.viz_v1)
     save_img_list(img_dir, make_filename(best_result.visualize.filename, "_v2"), best_result.visualize.viz_v2)
@@ -78,7 +80,10 @@ def test(cfg):
     print(best_result.result_txt)
     
 def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label_map:dict, testloader:DataLoader, device:torch.device):
-    weights = torch.load(weights_file)['model_1']
+    try:
+        weights = torch.load(weights_file)['model_1']
+    except:
+        return None
     model.load_state_dict(weights)
     model.eval()
     measurement = Measurement(num_classes)
@@ -152,3 +157,21 @@ if __name__ == "__main__":
     cfg = get_config_from_json(opt.config_path)
     
     test(cfg)
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v23/ckpoints", 
+           "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v24/ckpoints"]
+    cfg.resize = 512
+    num_embeddings_l = [4096, 2048]
+    for w, ne in zip(w_l, num_embeddings_l):
+        cfg.test.weights = w
+        cfg.model.params.vq_cfg.num_embeddings = ne
+        test(cfg)
+        
+    cfg = get_config_from_json("./config/cps_vqv1.json")
+    cfg.resize = 256
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v186/ckpoints"]
+    num_embeddings_l = [512]
+    for w, ne in zip(w_l, num_embeddings_l):
+        cfg.test.weights = w
+        cfg.model.params.vq_cfg.num_embeddings = ne
+        test(cfg)
+    

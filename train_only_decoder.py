@@ -224,10 +224,16 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/cps_vqv1.json')
+    parser.add_argument('--config_path', default='./config/cps_vqv2.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
+    vqv2_selfsup_folds = [
+        "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision13",
+        "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision14",
+        "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision23",
+        "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision24"
+    ]
     train(cfg)

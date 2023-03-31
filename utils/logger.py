@@ -86,6 +86,7 @@ class TestLogger(BaseLogger):
                 #    notes="baseline",
                 #    tags = ["csp+unet+cutmix"]
         )
+        wandb.config.update(cfg)
          # config setting
         self.config_dict = dict()
        
