@@ -12,11 +12,11 @@ from torch.utils.data import DataLoader
 
 import models
 from utils.logger import Logger, list_to_separate_log
-from utils.ckpoints import  save_ckpoints, load_ckpoints
+from utils.ckpoints import  save_ckpoints, load_ckpoints, save_tar
 from utils.load_config import get_config_from_json
 from utils.device import device_setting
 from utils.processing import detach_numpy
-from utils.visualize import make_example_img, save_img, save_tar
+from utils.visualize import make_example_img, save_img
 from utils.seg_tools import img_to_label
 from utils.lr_schedulers import WarmUpPolyLR, CosineAnnealingLR
 
@@ -224,16 +224,27 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/cps_vqv2.json')
+    parser.add_argument('--config_path', default='./config/cps_vqv2_pretrained.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
+    
+    # train(cfg)
     vqv2_selfsup_folds = [
         "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision13",
         "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision14",
         "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision23",
         "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision24"
     ]
-    train(cfg)
+    resize_l = [256, 256, 256, 256]
+    num_embeds_l = [2048, 2048, 512, 512]
+    epochs = [200, 400, 600, 800]
+    for i, selfsup in enumerate(vqv2_selfsup_folds):
+        cfg.resize = resize_l[i]
+        cfg.model.params.vq_cfg.num_embeddings = num_embeds_l[i]
+        for epoch in epochs:
+            cfg.train.pretrained.encoder = os.path.join(selfsup, 'ckpoints', f"{epoch}ep_encoder.pth") 
+            cfg.train.pretrained.codebook = os.path.join(selfsup, 'ckpoints', f"{epoch}ep_codebook.pth")
+            train(cfg)

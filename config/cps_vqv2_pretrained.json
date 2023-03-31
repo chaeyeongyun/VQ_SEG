@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQUnet_v2",
+    "project_name":"VQUnet_v2_base_selfsup",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{
