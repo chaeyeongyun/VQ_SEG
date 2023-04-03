@@ -4,6 +4,8 @@ from models.networks.unet.decoder import UnetDecoder
 from models.encoders import make_encoder
 from models.modules.segmentation_head import SegmentationHead
 from vector_quantizer.vq_img import VectorQuantizer
+from vector_quantizer import make_vq_module
+import copy
  
 class VQUnet_v1(nn.Module):
     def __init__(
@@ -74,7 +76,17 @@ class VQUnet_v2(nn.Module):
         
         self.encoder = make_encoder(encoder_name, in_channels, depth)    
         encoder_channels = self.encoder.out_channels()
-        self.codebook = nn.ModuleList([VectorQuantizer(**vq_cfg, dim=encoder_channels[i+1])for i in range(depth)])
+        
+        # if isinstance(vq_cfg.num_embeddings, (int)):
+        #     self.codebook = nn.ModuleList([VectorQuantizer(**vq_cfg, dim=encoder_channels[i+1])for i in range(depth)])
+        # elif isinstance(vq_cfg.num_embeddings, list):
+        #     l = []
+        #     for i in range(depth):
+        #         num_embeddings = copy.deepcopy(vq_cfg.num_embeddings)
+        #         vq_cfg.num_embeddings = num_embeddings[i]
+        #         l.append(VectorQuantizer(**vq_cfg, dim=encoder_channels[i+1]))
+        #     self.codebook = nn.ModuleList(l)
+        self.codebook = make_vq_module(vq_cfg, encoder_channels, depth)
         
         if decoder_channels == None:
             decoder_channels = [i//2 for i in encoder_channels[1:]] 

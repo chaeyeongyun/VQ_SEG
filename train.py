@@ -212,18 +212,20 @@ def train(cfg):
             
             logger.logging(epoch=epoch)
             logger.config_update()
-    if logger != None: log_txt.close()
+    if logger != None: 
+        log_txt.close()
+        logger.finish()
     if cfg.train.save_as_tar:
         save_tar(save_dir)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/cps_vqv1.json')
+    parser.add_argument('--config_path', default='./config/cps_vqv2.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
-    cfg.train.half=False
-    cfg.resize = 256
+    # cfg.train.half=False
+    # cfg.resize = 256
     train(cfg)

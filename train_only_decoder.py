@@ -218,7 +218,10 @@ def train(cfg):
             
             logger.logging(epoch=epoch)
             logger.config_update()
-    if logger != None: log_txt.close()
+    if logger != None: 
+        log_txt.close()
+        logger.finish()
+    
     if cfg.train.save_as_tar:
         save_tar(save_dir)
     

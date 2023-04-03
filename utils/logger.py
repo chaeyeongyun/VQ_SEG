@@ -49,6 +49,8 @@ class BaseLogger():
     
     def temp_update(self, d:dict):
         self.temp_dict = d
+    def finish(self):
+        wandb.finish()
         
 class Logger(BaseLogger):
     def __init__(self, cfg, logger_name):
@@ -81,7 +83,7 @@ class Logger(BaseLogger):
             
 class TestLogger(BaseLogger):
     def __init__(self, cfg, logger_name):
-        wandb.init(project=cfg.project_name,
+        wandb.init(project=cfg.project_name+"_test",
                    name=logger_name
                 #    notes="baseline",
                 #    tags = ["csp+unet+cutmix"]

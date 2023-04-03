@@ -26,7 +26,6 @@ def make_filename(filename_list, insert):
     return filename_list
 
 def test(cfg):
-    cfg.project_name = cfg.project_name + "_test"
     # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
@@ -78,7 +77,7 @@ def test(cfg):
             }
         logger.logging()
     print(best_result.result_txt)
-    
+    if logger != None: logger.finish()
 def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label_map:dict, testloader:DataLoader, device:torch.device):
     try:
         weights = torch.load(weights_file)['model_1']
@@ -156,22 +155,47 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     
-    test(cfg)
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v23/ckpoints", 
-           "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v24/ckpoints"]
-    cfg.resize = 512
-    num_embeddings_l = [4096, 2048]
-    for w, ne in zip(w_l, num_embeddings_l):
-        cfg.test.weights = w
-        cfg.model.params.vq_cfg.num_embeddings = ne
-        test(cfg)
+    # test(cfg)
+    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v23/ckpoints", 
+    #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v24/ckpoints"]
+    # cfg.resize = 512
+    # num_embeddings_l = [4096, 2048]
+    # for w, ne in zip(w_l, num_embeddings_l):
+    #     cfg.test.weights = w
+    #     cfg.model.params.vq_cfg.num_embeddings = ne
+    #     test(cfg)
         
-    cfg = get_config_from_json("./config/cps_vqv1.json")
-    cfg.resize = 256
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v186/ckpoints"]
-    num_embeddings_l = [512]
-    for w, ne in zip(w_l, num_embeddings_l):
-        cfg.test.weights = w
-        cfg.model.params.vq_cfg.num_embeddings = ne
-        test(cfg)
+    # cfg = get_config_from_json("./config/cps_vqv1.json")
+    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v186/ckpoints",
+    #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v16/ckpoints"]
+    # resize_l = [256, 512]
+    # num_embeddings_l = [512, 2048]
+    # for i, w, ne in enumerate(zip(w_l, num_embeddings_l)):
+    #     cfg.test.weights = w
+    #     cfg.resize = resize_l[i]
+    #     cfg.model.params.vq_cfg.num_embeddings = ne
+    #     test(cfg)
+    
+    
+    cfg = get_config_from_json("./config/cps_vqv2_pretrained.json")
+    vqv2_selfsup_folds = [
+        "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision13",
+        "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision14",
+        "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision23",
+        "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision24"
+    ]
+    
+    
+    ckpoint_fold = "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_base_selfsup"
+    start = 94
+    resize_l = [256, 256, 256, 256]
+    num_embeds_l = [2048, 2048, 512, 512]
+    epochs = [200, 400, 600, 800]
+    for i, selfsup in enumerate(vqv2_selfsup_folds):
+        cfg.resize = resize_l[i]
+        cfg.model.params.vq_cfg.num_embeddings = num_embeds_l[i]
+        for epoch in epochs:
+            cfg.test.weights = os.path.join(ckpoint_fold+str(start), 'ckpoints') 
+            test(cfg)
+            start += 1
     
