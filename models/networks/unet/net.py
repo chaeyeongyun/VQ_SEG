@@ -109,9 +109,12 @@ class VQUnet_v2(nn.Module):
             quantize, _embed_index, commitment_loss, code_usage = self.codebook[i](features[i])
             features[i] = quantize
             # sum
-            loss = loss + commitment_loss
-            if code_usage_loss : usage_loss = usage_loss + code_usage
-            code_usage_lst.append(code_usage.detach().cpu())
+            if commitment_loss is not None: loss = loss + commitment_loss
+            
+            if code_usage is not None: 
+                code_usage_lst.append(code_usage.detach().cpu())
+                if code_usage_loss: 
+                    usage_loss = usage_loss + code_usage
         # mean
         loss = loss / len(features)
         decoder_out = self.decoder(*features)

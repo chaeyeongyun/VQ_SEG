@@ -66,7 +66,7 @@ class VectorQuantizer(nn.Module):
         commitment_weight = 1,  
         ):
         super().__init__()
-        if num_embeddings == 0: return nn.Identity()
+        
         embedding_dim = embedding_dim if embedding_dim!=None else dim
         self.num_embeddings = num_embeddings
         # TODO: projection require

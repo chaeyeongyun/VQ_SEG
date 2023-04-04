@@ -14,6 +14,7 @@ def focal_loss(pred:torch.Tensor, target:torch.Tensor, alpha, gamma, num_classes
         pred = F.softmax(pred, dim=1).float()
 
     onehot = label_to_onehot(target, num_classes) if target.dim()==3 else target
+    onehot = onehot.to(pred.device)
     focal_loss = 0
 
     focal = torch.pow((1-pred), gamma) # (B, C, H, W)

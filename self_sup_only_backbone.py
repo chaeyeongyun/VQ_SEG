@@ -119,7 +119,9 @@ def train(cfg):
             logger.logging(epoch=epoch)
             logger.config_update()
             
-    if logger != None: log_txt.close()
+    if logger != None: 
+        log_txt.close()
+        logger.finish()
     if cfg.train.save_as_tar:
         save_tar(save_dir)
         
@@ -128,17 +130,14 @@ if __name__ == "__main__":
     parser.add_argument('--config_path', default='./config/self_sup_train_v2.yaml')
     opt = parser.parse_args()
     cfg = get_config_from_yaml(opt.config_path)
-    # debug
+    # # debug
     # cfg.resize=64
     # cfg.wandb_logging = True
     # cfg.project_name = 'debug'
     # cfg.resize=256
     # cfg.train.half=False
     # train(cfg)
-    
-    num_embeddings = [2048, 4096]
-    cfg.resize=256
-    cfg.train.half=True
-    for num in num_embeddings:
-        cfg.model.params.vq_cfg.num_embeddings=num
-        train(cfg)
+    cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
+    train(cfg)
+    cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
+    train(cfg)
