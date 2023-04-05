@@ -81,27 +81,27 @@ class EuclideanCodebook(nn.Module):
         ):
  
         super().__init__()
+        self.kmeans_init = kmeans_init
+        self.kmeans_iters = kmeans_iters
         self.initted = False
+        
         self.num_codebook = num_codebook
         self.decay = decay
         self.embedding = nn.Embedding(num_embeddings, embedding_dim)
-        if kmeans_init:
-            self.kmeans_init = kmeans_init
-            self.kmeans_iters = kmeans_iters
-            raise NotImplementedError
-        else:
-            self.num_embeddings = num_embeddings
-            self.embedding_dim = embedding_dim
+
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        if not kmeans_init: 
             self.embedding.weight.data.uniform_(-1/self.num_embeddings, 1/self.num_embeddings)
             self.initted = True
-            # nn.init.kaiming_uniform_(self.embedding.weight.data)
+        # nn.init.kaiming_uniform_(self.embedding.weight.data)
     def forward(self, x):
         '''x shape : (B, HxW, C)'''
         x = x.float()
         x_shape, dtype = x.shape, x.dtype
         flatten_x = rearrange(x, 'b ... c -> b (...) c')
         if self.kmeans_init:
-            self._kmenans_init(flatten_x)
+            self._kmeans_init(flatten_x)
         distance = torch.cdist(flatten_x, self.embedding.weight, p=2) # (N, 모든 픽셀 수, num_embeddings)
         embed_idx = torch.argmin(distance, dim=-1) # (N, 모든 픽셀 수)
         embed_idx_onehot = F.one_hot(embed_idx, num_classes=self.num_embeddings) # (N, 모든 픽셀 수, num_embeddings)
