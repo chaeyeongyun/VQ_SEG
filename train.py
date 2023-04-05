@@ -229,7 +229,7 @@ if __name__ == "__main__":
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
-    cfg = get_config_from_json('./config/cps_vqv2_kmeans_init')
+    cfg = get_config_from_json('./config/cps_vqv2_kmeans_init.json')
     cfg.train.criterion = "dice_loss"
     cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
     train(cfg)

@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+from torch import nn, einsum
 import torch.nn.functional as F
 from einops import rearrange, repeat
 
@@ -63,9 +63,70 @@ def kmeans(flatten_x, num_clusters, num_iters, use_cosine_sim=False):
     return means, bins
 
 class CosinesimCodebook(nn.Module):
-    # TODO: 
-    def __init__(self):
+    def __init__(
+        self,
+        embedding_dim,
+        num_embeddings,
+        kmeans_init,
+        kmeans_iters,
+        decay,
+        eps,
+        num_codebook
+        ):
+ 
         super().__init__()
+        self.kmeans_init = kmeans_init
+        self.kmeans_iters = kmeans_iters
+        self.initted = False
+        
+        self.num_codebook = num_codebook
+        self.decay = decay
+        self.embedding = nn.Embedding(num_embeddings, embedding_dim)
+
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        if not kmeans_init: 
+            self.embedding.weight.data.uniform_(-1/self.num_embeddings, 1/self.num_embeddings)
+            self.initted = True
+        # nn.init.kaiming_uniform_(self.embedding.weight.data)
+    def forward(self, x):
+        '''x shape : (B, HxW, C)'''
+        x = x.float()
+        x_shape, dtype = x.shape, x.dtype
+        flatten_x = rearrange(x, 'b ... c -> b (...) c')
+        flatten_x = l2norm(flatten_x)
+        if self.kmeans_init:
+            self._kmeans_init(flatten_x)
+        self.embedding = l2norm(self.embedding.weight.data)
+        
+        b, hw, c = flatten_x.shape[:]
+        flatten_x = flatten_x.contiguous().view((b*hw, c)) # (BxHxW, C)
+        distance = einsum('n d, e d -> n e', flatten_x, self.embedding.weight)
+        distance = distance.contiguous().view((b, hw, c))
+        embed_idx = torch.argmin(distance, dim=-1) # (N, 모든 픽셀 수)
+        embed_idx_onehot = F.one_hot(embed_idx, num_classes=self.num_embeddings) # (N, 모든 픽셀 수, num_embeddings)
+        quantized = torch.matmul(embed_idx_onehot.float(), self.embedding.weight)
+        
+        # code_usage
+        codebook_cnt = torch.bincount(embed_idx.reshape(-1), minlength=self.num_embeddings)
+        zero_cnt = (codebook_cnt == 0).sum()
+        code_usage = 100 * (zero_cnt / self.num_embeddings) # 낮을 수록 좋음
+
+        return quantized, embed_idx, code_usage
+    
+    def _kmeans_init(self, flatten_x):    
+        if self.initted:
+            return
+        
+        embed, cluster_size = kmeans(
+            flatten_x,
+            self.num_embeddings,
+            self.kmeans_iters,
+            use_cosine_sim=True
+        )
+        
+        self.embedding.weight.data.copy_(embed)
+        self.initted = True
 
 
 class EuclideanCodebook(nn.Module):
@@ -120,11 +181,11 @@ class EuclideanCodebook(nn.Module):
         
         embed, cluster_size = kmeans(
             flatten_x,
-            self.codebook_size,
+            self.num_embeddings,
             self.kmeans_iters,
         )
         
-        self.embedding.weight.data.copy_(embed)
+        self.embedding.weight.data.copy_(embed[0])
         self.initted = True
 
 
