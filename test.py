@@ -159,9 +159,9 @@ if __name__ == "__main__":
     # test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2104/ckpoints"]
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2109/ckpoints", "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2110/ckpoints"]
     cfg.resize = 512
-    num_embeddings_l = [[0, 0, 2048, 2048, 2048]]
+    num_embeddings_l = [[0, 0, 512, 512, 512], [0, 0, 2048, 2048, 2048]]
     for w, ne in zip(w_l, num_embeddings_l):
         cfg.test.weights = w
         cfg.model.params.vq_cfg.num_embeddings = ne
