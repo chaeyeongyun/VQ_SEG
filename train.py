@@ -173,7 +173,7 @@ def train(cfg):
         sup_loss_1 = sum_sup_loss_1 / len(unsup_loader)
         sup_loss_2 = sum_sup_loss_2 / len(unsup_loader)
         commitment_loss = sum_commitment_loss / len(unsup_loader)
-        loss = loss / len(unsup_loader)
+        loss = sum_loss / len(unsup_loader)
         miou = sum_miou / len(unsup_loader)
         
         print_txt = f"[Epoch{epoch}]" \
@@ -226,10 +226,11 @@ if __name__ == "__main__":
     # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
-    cfg = get_config_from_json('./config/cps_vqv2_kmeans_init.json')
+    cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
     cfg.train.criterion = "dice_loss"
     cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
     train(cfg)

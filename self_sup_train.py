@@ -96,7 +96,7 @@ def train(cfg):
         # end epoch #
         recon_loss = recon_loss_sum/len(dataloader)
         commitment_loss = commitment_loss_sum/len(dataloader)
-        loss = loss_sum/len(dataloader)
+        loss = sum_loss / len(unsup_loader)
         code_usage = (sum_code_usage / len(dataloader)).tolist()
         print_txt = f"[Epoch{epoch}] recon_loss={recon_loss:.4f}, commitment_loss={commitment_loss:.4f}, loss={loss:.4f}"
         print(print_txt)

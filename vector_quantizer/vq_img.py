@@ -97,12 +97,13 @@ class CosinesimCodebook(nn.Module):
         flatten_x = l2norm(flatten_x)
         if self.kmeans_init:
             self._kmeans_init(flatten_x)
-        self.embedding = l2norm(self.embedding.weight.data)
+        self.embedding.weight.data.copy_(l2norm(self.embedding.weight.data))
         
         b, hw, c = flatten_x.shape[:]
         flatten_x = flatten_x.contiguous().view((b*hw, c)) # (BxHxW, C)
         distance = einsum('n d, e d -> n e', flatten_x, self.embedding.weight)
-        distance = distance.contiguous().view((b, hw, c))
+        distance = distance.contiguous().view((b, hw, self.num_embeddings))
+       
         embed_idx = torch.argmin(distance, dim=-1) # (N, 모든 픽셀 수)
         embed_idx_onehot = F.one_hot(embed_idx, num_classes=self.num_embeddings) # (N, 모든 픽셀 수, num_embeddings)
         quantized = torch.matmul(embed_idx_onehot.float(), self.embedding.weight)
@@ -125,7 +126,7 @@ class CosinesimCodebook(nn.Module):
             use_cosine_sim=True
         )
         
-        self.embedding.weight.data.copy_(embed)
+        self.embedding.weight.data.copy_(embed[0])
         self.initted = True
 
 

@@ -33,15 +33,17 @@ def make_example_img(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray, ul_
     target = target_to_colormap(target, colormap=colormap)
     target = batch_to_grid(target, transpose=False)
     pred = batch_to_grid(pred_to_colormap(pred, colormap=colormap), transpose=False)
+    l_cat = np.concatenate((l_input, target, pred), axis=1)
+    h, w, c = l_cat.shape[:]
+    if ul_input is None and ul_pred is None:
+        return l_cat
     
     ul_input = batch_to_grid(ul_input)
     ul_pred = batch_to_grid(pred_to_colormap(ul_pred, colormap=colormap), transpose=False)
-    
-    l_cat = np.concatenate((l_input, target, pred), axis=1)
     ul_mix = mix_input_pred(ul_input, ul_pred)
-    h, w, c = l_cat.shape[:]
     interval = np.ones((h, 20, c), dtype=np.float64)
     cat_img = np.concatenate((l_cat, interval, ul_mix), axis=1)
+
     return cat_img
 
 def save_img(img_dir:str, filename:str, img:np.ndarray):

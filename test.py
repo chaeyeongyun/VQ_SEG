@@ -156,16 +156,26 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     
+    
     # test(cfg)
-    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
-    #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2109/ckpoints", "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2110/ckpoints"]
-    cfg.resize = 512
+    cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_cosinesim126/ckpoints", 
+           "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_cosinesim127/ckpoints",]
     num_embeddings_l = [[0, 0, 512, 512, 512], [0, 0, 2048, 2048, 2048]]
     for w, ne in zip(w_l, num_embeddings_l):
         cfg.test.weights = w
         cfg.model.params.vq_cfg.num_embeddings = ne
         test(cfg)
+    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
+    #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
+    # cfg = get_config_from_json('./config/cps_vqv2_kmeans_init.json')
+    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_kmeans_init116/ckpoints", "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_kmeans_init117/ckpoints"]
+    # cfg.resize = 512
+    # num_embeddings_l = [[0, 0, 512, 512, 512], [0, 0, 2048, 2048, 2048]]
+    # for w, ne in zip(w_l, num_embeddings_l):
+    #     cfg.test.weights = w
+    #     cfg.model.params.vq_cfg.num_embeddings = ne
+    #     test(cfg)
         
     # cfg = get_config_from_json("./config/cps_vqv1.json")
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v186/ckpoints",
@@ -200,4 +210,3 @@ if __name__ == "__main__":
     #         cfg.test.weights = os.path.join(ckpoint_fold+str(start), 'ckpoints') 
     #         test(cfg)
     #         start += 1
-    
