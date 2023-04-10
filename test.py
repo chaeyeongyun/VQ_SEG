@@ -38,17 +38,14 @@ def test(cfg):
     
     model = models.networks.make_model(cfg.model).to(device)
     logger_name = (cfg.model.name+"_"+model.encoder.__class__.__name__+"_"+model.decoder.__class__.__name__+"_"+str(len(os.listdir(cfg.test.save_dir))))
+    # make save folders
     save_dir = os.path.join(cfg.test.save_dir, logger_name)
     os.makedirs(save_dir)
     img_dir = os.path.join(save_dir, 'imgs')
     os.mkdir(img_dir)
     
     logger = TestLogger(cfg, logger_name) if cfg.wandb_logging else None
-    
-
-    # make save folders
-    
-    test_data = BaseDataset(os.path.join(cfg.test.data_dir, 'test'), split='labelled', resize=cfg.resize)
+    test_data = BaseDataset(os.path.join(cfg.test.data_dir, 'test'), split='labelled', resize=cfg.resize, target_resize=False)
     testloader = DataLoader(test_data, batch_size, shuffle=False)
     f = open(os.path.join(save_dir, 'results.txt'), 'w')
     f.write(f"data_dir:{cfg.test.data_dir}, weights:{cfg.test.weights}, save_dir:{cfg.test.save_dir}")
@@ -57,6 +54,7 @@ def test(cfg):
         best_result = test_loop(model, weights, num_classes, pixel_to_label_map, testloader, device)
     elif os.path.isdir(cfg.test.weights):
         weights_list = glob(os.path.join(cfg.test.weights, '*.pth'))
+        weights_list.sort()
         best_miou = 0.
         best_result = None
         for weights in weights_list:
@@ -77,11 +75,12 @@ def test(cfg):
             }
         logger.logging()
     print(best_result.result_txt)
-    if logger != None: 
+    if logger is not None: 
         logger.finish()
 def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label_map:dict, testloader:DataLoader, device:torch.device):
     try:
-        weights = torch.load(weights_file)['model_1']
+        weights = torch.load(weights_file)
+        weights = weights.get('model_1', weights)
     except:
         return None
     model.load_state_dict(weights)
@@ -101,9 +100,9 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
             pred, _, _ = model(input_img)
         
         pred = F.interpolate(pred, mask_img.shape[-2:], mode='bilinear')
-        pred_cpu, mask_cpu = pred.detach().cpu().numpy(), mask_cpu.cpu().numpy()
+        pred_numpy, mask_numpy = pred.detach().cpu().numpy(), mask_cpu.cpu().numpy()
         
-        acc_pixel, batch_miou, iou_ndarray, precision, recall, f1score = measurement(pred_cpu, mask_cpu) 
+        acc_pixel, batch_miou, iou_ndarray, precision, recall, f1score = measurement(pred_numpy, mask_numpy) 
         
         test_acc += acc_pixel
         test_miou += batch_miou
@@ -112,15 +111,19 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
         test_precision += precision
         test_recall += recall
         test_f1score += f1score
-            
-    # test finish
-        input_img = F.interpolate(input_img.detach().cpu(), mask_img.shape[-2:], mode='bilinear')
+        
+        save_size = (mask_img.shape[-2]//2, mask_img.shape[-1]//2)
+        input_img = F.interpolate(input_img.detach().cpu(), save_size, mode='bilinear')
+        pred_cpu = F.interpolate(pred.detach().cpu(), save_size, mode='bilinear')
+        mask_cpu = F.interpolate(mask_img.detach().cpu().unsqueeze(1), save_size, mode='nearest').squeeze(1)
+        mask_cpu = img_to_label(mask_cpu, pixel_to_label_map)
         viz_v1, viz_v2 = make_test_img(input_img.numpy(), pred_cpu, mask_cpu,
                         colormap = np.array([[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]]))
         viz_v1_list.append(viz_v1)
         viz_v2_list.append(viz_v2)
         filename_list.append(*filename)
         
+    # test finish
     test_acc = test_acc / len(testloader)
     test_miou = test_miou / len(testloader)
     test_ious = np.round((iou_per_class / len(testloader)), 5).tolist()
@@ -131,6 +134,7 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
     result_txt = "load model(.pt) : %s \n Testaccuracy: %.8f, Test miou: %.8f" % (weights_file,  test_acc, test_miou)       
     result_txt += f"\niou per class {test_ious}"
     result_txt += f"\nprecision : {test_precision}, recall : {test_recall}, f1score : {test_f1score} " 
+    print(result_txt)
     return_dict = {
         "metrics":
             {
@@ -158,24 +162,25 @@ if __name__ == "__main__":
     
     
     # test(cfg)
-    cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_cosinesim126/ckpoints", 
-           "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_cosinesim127/ckpoints",]
+    # cfg = get_config_from_json('./config/only_sup_kmeans.json')
+    # w_l = ["../drive/MyDrive/only_sup_train/CWFID/only_sup_kmeans132/ckpoints", 
+    #        "../drive/MyDrive/only_sup_train/CWFID/only_sup_kmeans133/ckpoints",]
+    # num_embeddings_l = [[0, 0, 512, 512, 512], [0, 0, 2048, 2048, 2048]]
+    # for w, ne in zip(w_l, num_embeddings_l):
+    #     cfg.test.weights = w
+    #     cfg.model.params.vq_cfg.num_embeddings = ne
+    #     # cfg.wandb_logging=False
+    #     test(cfg)
+    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
+    #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
+    cfg = get_config_from_json('./config/cps_vqv2_kmeans_init.json')
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_kmeans_init116/ckpoints", "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_kmeans_init117/ckpoints"]
+    cfg.resize = 512
     num_embeddings_l = [[0, 0, 512, 512, 512], [0, 0, 2048, 2048, 2048]]
     for w, ne in zip(w_l, num_embeddings_l):
         cfg.test.weights = w
         cfg.model.params.vq_cfg.num_embeddings = ne
         test(cfg)
-    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
-    #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    # cfg = get_config_from_json('./config/cps_vqv2_kmeans_init.json')
-    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_kmeans_init116/ckpoints", "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_kmeans_init117/ckpoints"]
-    # cfg.resize = 512
-    # num_embeddings_l = [[0, 0, 512, 512, 512], [0, 0, 2048, 2048, 2048]]
-    # for w, ne in zip(w_l, num_embeddings_l):
-    #     cfg.test.weights = w
-    #     cfg.model.params.vq_cfg.num_embeddings = ne
-    #     test(cfg)
         
     # cfg = get_config_from_json("./config/cps_vqv1.json")
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v186/ckpoints",

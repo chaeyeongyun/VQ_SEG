@@ -1,0 +1,58 @@
+{   
+    "project_name":"VQUnet_v2_cosinesim",
+    "wandb_logging":true,
+    "num_classes":3,
+    "pixel_to_label":{
+        "0":0,
+        "128":1,
+        "255":2
+    },
+    "resize":512,
+    "model":{
+        "name":"vqunet_v2",
+        "params":{
+            "encoder_name":"resnet50",
+            "num_classes":3,
+            "depth": 5,
+            "vq_cfg":{
+                "num_embeddings":[0, 0, 512, 512, 512],
+                "distance":"cosine",
+                "kmeans_init": true
+                }
+            }
+        },
+    "train":{
+        "data_dir":"../data/semi_sup_data/CWFID/num30",
+        "save_dir":"../drive/MyDrive/semi_sup_train/CWFID",
+        "device":0,
+        "num_epochs":400,
+        "batch_size":4,
+        "learning_rate":1e-4,
+        "lr_scheduler":{
+            "name":"cosineannealing",
+            "min_lr":1e-8,
+            "warmup_steps":0
+        },
+        "half":true,
+        "init_weights":true,
+        "bn_eps":1e-5,
+        "bn_momentum":0.1,
+        "criterion":"cross_entropy",
+        "cps_loss_weight":1,
+        "total_commitment_loss_weight":1,
+        "resume":null,
+        "save_img":true,
+        "save_txt":true,
+        "save_as_tar":false,
+        "wandb_config":["batch_size", "num_epochs"],
+        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "cps_loss", "commitment_loss", "crop_iou", "weed_iou", "back_iou"],
+        "wandb_metrics":["loss", "miou"] 
+    },
+    "test":{
+        "data_dir":"../data/semi_sup_data/CWFID/num30",
+        "save_dir":"../drive/MyDrive/semi_sup_test/CWFID",
+        "device":0,
+        "batch_size":1,
+        "weights":"../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v23/ckpoints"
+    }
+}

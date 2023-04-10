@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 
 class BaseDataset(Dataset):
-    def __init__(self, data_dir, split, resize=None):
+    def __init__(self, data_dir, split, resize=None, target_resize=True):
         super().__init__()
         if type(resize)==int:
             self.resize = (resize, resize)
@@ -22,6 +22,7 @@ class BaseDataset(Dataset):
             raise ValueError(f"It's invalid type of resize {type(resize)}")
         
         self.img_dir = os.path.join(data_dir, 'input')
+        self.target_resize = target_resize
         if split == 'labelled':
             self.filenames = os.listdir(os.path.join(data_dir, 'target'))
             self.target_dir = os.path.join(data_dir, 'target')
@@ -38,18 +39,19 @@ class BaseDataset(Dataset):
         filename = self.filenames[index]
         img = Image.open(os.path.join(self.img_dir, filename)).convert('RGB')
         # img = TF.to_tensor(Image.open(os.path.join(self.img_dir, filename)).convert('RGB'))
-        if self.target_dir != None:
+        if self.target_dir is not None:
             target = Image.open(os.path.join(self.target_dir, filename)).convert('L')
         else:
             target = None
         
-        if self.resize != None:
+        if self.resize is not None:
             img = img.resize(self.resize, resample=Image.Resampling.BILINEAR)
-            target = target.resize(self.resize, resample=Image.Resampling.NEAREST) if target != None else None
+            if self.target_resize and target is not None:
+                target = target.resize(self.resize, resample=Image.Resampling.NEAREST)
         
         img = TF.to_tensor(img)
-        target = torch.from_numpy(np.array(target)) if target != None else None
-        if target == None:
+        target = torch.from_numpy(np.array(target)) if target is not None else None
+        if target is None:
             return {'filename':filename, 'img':img}
         return {'filename':filename, 'img':img, 'target':target}
         
