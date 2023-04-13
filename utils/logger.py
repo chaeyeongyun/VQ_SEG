@@ -60,6 +60,7 @@ class Logger(BaseLogger):
                 #    tags = ["csp+unet+cutmix"]
         )
         # config setting
+        wandb.config.update(cfg)
         self.config_dict = dict()
         for key in cfg.train.wandb_config:
             self.config_dict[key] = cfg.train[key]
