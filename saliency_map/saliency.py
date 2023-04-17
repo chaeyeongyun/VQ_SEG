@@ -1,5 +1,8 @@
 # https://github.dev/yhenon/pyimgsaliency/blob/master/pyimgsaliency/saliency.py
 # https://github.com/lihezhang-dut/AMC_AE
+# https://github.dev/yhenon/pyimgsaliency/blob/master/pyimgsaliency/saliency.py
+# https://github.com/lihezhang-dut/AMC_AE
+import cv2
 import math
 import sys
 import operator
@@ -44,16 +47,16 @@ def path_length(path,G):
 
 def make_graph(grid):
 	# get unique labels
-	vertices = np.unique(grid) - 1 # segment 된 라벨들 (1, 2, 3, 4, ...)
+	vertices = np.unique(grid)  # segment 된 라벨들 (1, 2, 3, 4, ...)
 
 	# map unique labels to [1,...,num_labels]
 	# reverse_dict = dict(zip(vertices,np.arange(len(vertices)))) # 1을 0으로, 2를 1로, 3을 2로 .... 
  	# grid = np.array([reverse_dict[x] for x in grid.flat]).reshape(grid.shape) 
-	grid = grid - 1
+	# grid = grid - 1
 
 	# create edges
-	down = np.c_[grid[:-1, :].ravel(), grid[1:, :].ravel()] # 두개의 1차원 배열을 column으로 세로로 붙어 2차원 배열 만들기
-	right = np.c_[grid[:, :-1].ravel(), grid[:, 1:].ravel()] # 위아래 근접 좌우 근접 조합을 만드는 것임
+	down = np.c_[grid[:-1, :].ravel(), grid[1:, :].ravel()] # 두개의 1차원 배열을 column으로 세로로 붙어 2차원 배열 만들기 966-1
+	right = np.c_[grid[:, :-1].ravel(), grid[:, 1:].ravel()] # 위아래 근접 좌우 근접 조합을 만드는 것임 1296-1
 	all_edges = np.vstack([right, down]) # 그 조합들을 합침
 	all_edges = all_edges[all_edges[:, 0] != all_edges[:, 1], :] # 조합된 두개의 근접 조합의 vertice가 같지 않은 것들만 남김
 	all_edges = np.sort(all_edges,axis=1) # 조합들을 오름차순으로 정리
@@ -84,20 +87,19 @@ def get_saliency_rbd(img_path):
 
 	img_gray = img_as_float(skimage.color.rgb2gray(img))
     
-	f_slic = Slic(num_components=250, compactness=10, min_size_factor=0)
-	f_slic_segment = f_slic.iterate(img) # Cluster Map
-	f_slic_segment = f_slic_segment + 1 # 1부터 시작
-	segments_slic = slic(img_rgb, n_segments=250, compactness=10, sigma=1, enforce_connectivity=False) # 1부터 시작
+	# f_slic = Slic(num_components=250, compactness=10, min_size_factor=0)
+	# segments_slic = f_slic.iterate(img) # Cluster Map, 0부터 시작
+	segments_slic = slic(img_rgb, n_segments=250, compactness=10, sigma=1, enforce_connectivity=False, start_label=0)
 
-	num_segments = len(np.unique(segments_slic))
+	num_segments = len(np.unique(segments_slic)) # 250
 
-	nrows, ncols = segments_slic.shape
-	max_dist = math.sqrt(nrows*nrows + ncols*ncols)
+	nrows, ncols = segments_slic.shape # 966, 1296
+	max_dist = math.sqrt(nrows*nrows + ncols*ncols) # 1616.4071269330632 -> 대각선 길이
 
 	grid = segments_slic
 
-	(vertices,edges) = make_graph(grid)
-	grid = grid - 1
+	(vertices,edges) = make_graph(grid) # 0~249 array, 685개의 2개요소 리스트
+	# grid = grid - 1
 	gridx, gridy = np.mgrid[:grid.shape[0], :grid.shape[1]]
 
 	centers = dict()
@@ -120,7 +122,7 @@ def get_saliency_rbd(img_path):
 	G = nx.Graph()
 
 	#buid the graph
-	for edge in edges: # 622
+	for edge in edges:
 		pt1 = edge[0]
 		pt2 = edge[1]
 		color_distance = scipy.spatial.distance.euclidean(colors[pt1],colors[pt2])
@@ -256,6 +258,7 @@ def get_saliency_ft(img_path):
 	sal_min = np.min(sal)
 	sal = 255 * ((sal - sal_min) / (sal_max - sal_min))
 	return sal
+
 
 if __name__ == '__main__':
     img = "/content/data/semi_sup_data/CWFID/num30/test/input/001_image.png"

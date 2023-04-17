@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQUnet_v2_kmeans_init",
+    "project_name":"VQUnet_v2_slicmean",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{

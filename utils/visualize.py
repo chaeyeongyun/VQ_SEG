@@ -2,6 +2,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import cv2
 
 def pred_to_colormap(pred:np.ndarray, colormap:np.ndarray):
     pred_label = np.argmax(pred, axis=1) # (N, H, W)
@@ -28,7 +29,7 @@ def mix_input_pred(input:np.ndarray, pred:np.ndarray, alpha=0.4):
     mix = np.clip(mix, 0, 1)
     return mix
     
-def make_example_img(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray, ul_input:np.ndarray, ul_pred:np.ndarray, colormap=np.array([[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]])):
+def make_example_img(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray, ul_input:np.ndarray, ul_pred:np.ndarray, colormap=np.array([[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]]), resize_factor=0.5):
     l_input = batch_to_grid(l_input)
     target = target_to_colormap(target, colormap=colormap)
     target = batch_to_grid(target, transpose=False)
@@ -43,10 +44,55 @@ def make_example_img(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray, ul_
     ul_mix = mix_input_pred(ul_input, ul_pred)
     interval = np.ones((h, 20, c), dtype=np.float64)
     cat_img = np.concatenate((l_cat, interval, ul_mix), axis=1)
-
+    if resize_factor is not None:
+        cat_img = cv2.resize(cat_img, dsize=(0,0), fx=resize_factor, fy=resize_factor, interpolation=cv2.INTER_LINEAR)
     return cat_img
 
-def save_img(img_dir:str, filename:str, img:np.ndarray):
+def make_example_img_salient(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray, ul_input:np.ndarray, ul_pred:np.ndarray, l_salient:np.ndarray, ul_salient:np.ndarray, colormap=np.array([[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]]), resize_factor=0.5):
+    l_salient, ul_salient = np.stack([l_salient]*3, axis=1), np.stack([ul_salient]*3, axis=1)
+    
+    l_input = batch_to_grid(l_input)
+    target = target_to_colormap(target, colormap=colormap)
+    target = batch_to_grid(target, transpose=False)
+    pred = batch_to_grid(pred_to_colormap(pred, colormap=colormap), transpose=False)
+    l_salient = batch_to_grid(l_salient)
+    l_cat = np.concatenate((l_input, target, pred, l_salient), axis=1)
+    h, w, c = l_cat.shape[:]
+    if ul_input is None and ul_pred is None:
+        return l_cat
+    
+    ul_input = batch_to_grid(ul_input)
+    ul_pred = batch_to_grid(pred_to_colormap(ul_pred, colormap=colormap), transpose=False)
+    ul_salient = batch_to_grid(ul_salient)
+    ul_mix = mix_input_pred(ul_input, ul_pred)
+    interval = np.ones((h, 20, c), dtype=np.float64)
+
+    cat_img = np.concatenate((l_cat, interval, ul_mix, ul_salient), axis=1)
+    if resize_factor is not None:
+        cat_img = cv2.resize(cat_img, dsize=(0,0), fx=resize_factor, fy=resize_factor, interpolation=cv2.INTER_LINEAR)
+    return cat_img
+
+def make_example_img_slic(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray, ul_input:np.ndarray, ul_pred:np.ndarray, l_slic:np.ndarray, ul_slic:np.ndarray, colormap=np.array([[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]]), resize_factor=0.5):
+    l_input = batch_to_grid(l_input)
+    target = target_to_colormap(target, colormap=colormap)
+    target = batch_to_grid(target, transpose=False)
+    pred = batch_to_grid(pred_to_colormap(pred, colormap=colormap), transpose=False)
+    l_slic = batch_to_grid(l_slic)
+    l_cat = np.concatenate((l_input, target, pred), axis=1)
+    h, w, c = l_cat.shape[:]
+    if ul_input is None and ul_pred is None:
+        return l_cat
+    
+    ul_input = batch_to_grid(ul_input)
+    ul_pred = batch_to_grid(pred_to_colormap(ul_pred, colormap=colormap), transpose=False)
+    ul_slic = batch_to_grid(ul_slic)
+    ul_mix = mix_input_pred(ul_input, ul_pred)
+    interval = np.ones((h, 20, c), dtype=np.float64)
+    cat_img = np.concatenate((l_cat, interval, ul_mix, ul_slic), axis=1)
+    if resize_factor is not None:
+        cat_img = cv2.resize(cat_img, dsize=(0,0), fx=resize_factor, fy=resize_factor, interpolation=cv2.INTER_LINEAR)
+    return cat_img
+def save_img(img_dir:str, filename:str, img:np.ndarray, resize_factor = 0.5):
     plt.imsave(os.path.join(img_dir, filename), img)
 
 def save_img_list(img_dir, filename_list:List[str], img_list:List[np.ndarray]):
