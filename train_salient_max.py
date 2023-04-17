@@ -32,7 +32,13 @@ def salient_masking(salient_maps, pred):
     mask[bg_n, 1, bg_y, bg_x] = 0 # 0.3 이하인 픽셀의 weed score을 0으로
     mask[bg_n, 2, bg_y, bg_x] = 0 # 0.3 이하인 픽셀의 crop score을 0으로
     return pred * mask
-    
+
+def salient_max(salient_maps, pred):
+    (bg_n, bg_y, bg_x) = (salient_maps<=0.3).nonzero(as_tuple=True) # 0.3이하인 곳의 인ㅔ스
+    mask = torch.zeros_like(pred, dtype=torch.float)
+    mask[bg_n, 0, bg_y, bg_x] = 1
+    return pred + mask
+
 # 일단 no cutmix version
 def train(cfg):
     if cfg.wandb_logging:
@@ -119,11 +125,11 @@ def train(cfg):
             with torch.cuda.amp.autocast(enabled=half):
                 pred_sup_1, commitment_loss_l1, code_usage_l1 = model_1(l_input)
                 pred_sup_2, commitment_loss_l2, code_usage_l2 = model_2(l_input)
-                pred_sup_1, pred_sup_2 = salient_masking(l_salient, pred_sup_1), salient_masking(l_salient, pred_sup_2)
+                pred_sup_1, pred_sup_2 = salient_max(l_salient, pred_sup_1), salient_max(l_salient, pred_sup_2)
                 ## predict in unsupervised manner ##
                 pred_ul_1, commitment_loss_ul1, code_usage_ul1 = model_1(ul_input)
                 pred_ul_2, commitment_loss_ul2, code_usage_ul2 = model_2(ul_input)
-                pred_ul_1, pred_ul_2 = salient_masking(ul_salient, pred_ul_1), salient_masking(ul_salient, pred_ul_2)
+                pred_ul_1, pred_ul_2 = salient_max(ul_salient, pred_ul_1), salient_max(ul_salient, pred_ul_2)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             ## cps loss ##
@@ -236,12 +242,13 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    cfg.resize=32
-    cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.resize=32
+    # cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
+    cfg.project_name = 'VQUnet_kmenas_salient_max'
     cfg.train.criterion = "dice_loss"
     cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
     train(cfg)
