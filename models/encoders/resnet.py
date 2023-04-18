@@ -100,12 +100,13 @@ resnet_encoders = {
 
 class ResNetEncoder(ResNet):
     '''for unet'''
-    def __init__(self, out_channels, depth=5, **kwargs):
+    def __init__(self, out_channels, depth=5, in_channels=3, **kwargs):
         super().__init__(**kwargs)
         self._depth = depth
         self._out_channels = out_channels
-        self._in_channels = 3
-        
+        self._in_channels = in_channels
+        if self._in_channels != 3:
+            self.conv1 = nn.Conv2d(self._in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
         del self.fc
         del self.avgpool
 

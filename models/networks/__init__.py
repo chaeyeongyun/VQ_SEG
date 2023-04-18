@@ -1,9 +1,10 @@
-from .unet.net import VQUnet_v1, VQUnet_v2
+from .unet.net import VQUnet_v1, VQUnet_v2, VQUnetwithSalientloss
 from .vqvaev2.net import VQVAEv2
 network_dict = {
     "vqunet_v1":VQUnet_v1,
     "vqunet_v2":VQUnet_v2,
-    "vqvaev2":VQVAEv2
+    "vqvaev2":VQVAEv2,
+    "VQUnetwithSalientloss":VQUnetwithSalientloss
 }
 
 def make_model(model_cfg:dict):

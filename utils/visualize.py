@@ -4,6 +4,16 @@ import numpy as np
 import os
 import cv2
 
+
+def gray_to_rgb(img:np.array):
+    if img.ndim==3:
+        result = np.stack([img]*3, axis=1)
+    elif img.ndim==4:
+        result = np.concatenate([img]*3, axis=1)
+    else:
+        raise NotImplementedError("this function is implemented for only dimension 3 and 4")
+    return result
+
 def pred_to_colormap(pred:np.ndarray, colormap:np.ndarray):
     pred_label = np.argmax(pred, axis=1) # (N, H, W)
     show = colormap[pred_label] # (N, H, W, 3)
@@ -49,7 +59,7 @@ def make_example_img(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray, ul_
     return cat_img
 
 def make_example_img_salient(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray, ul_input:np.ndarray, ul_pred:np.ndarray, l_salient:np.ndarray, ul_salient:np.ndarray, colormap=np.array([[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]]), resize_factor=0.5):
-    l_salient, ul_salient = np.stack([l_salient]*3, axis=1), np.stack([ul_salient]*3, axis=1)
+    l_salient, ul_salient = gray_to_rgb(l_salient), gray_to_rgb(ul_salient)
     
     l_input = batch_to_grid(l_input)
     target = target_to_colormap(target, colormap=colormap)
@@ -68,6 +78,35 @@ def make_example_img_salient(l_input:np.ndarray, target:np.ndarray, pred:np.ndar
     interval = np.ones((h, 20, c), dtype=np.float64)
 
     cat_img = np.concatenate((l_cat, interval, ul_mix, ul_salient), axis=1)
+    if resize_factor is not None:
+        cat_img = cv2.resize(cat_img, dsize=(0,0), fx=resize_factor, fy=resize_factor, interpolation=cv2.INTER_LINEAR)
+    return cat_img
+
+
+def make_example_img_salient_loss(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray, ul_input:np.ndarray, ul_pred:np.ndarray, 
+                                  l_salient:np.ndarray, ul_salient:np.ndarray, salient_pred_l:np.ndarray, salient_pred_ul:np.ndarray,
+                                  colormap=np.array([[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]]), resize_factor=0.5):
+
+    l_salient, ul_salient = gray_to_rgb(l_salient), gray_to_rgb(ul_salient)
+    salient_pred_l, salient_pred_ul = gray_to_rgb(salient_pred_l), gray_to_rgb(salient_pred_ul)
+
+    l_input = batch_to_grid(l_input)
+    target = target_to_colormap(target, colormap=colormap)
+    target = batch_to_grid(target, transpose=False)
+    pred = batch_to_grid(pred_to_colormap(pred, colormap=colormap), transpose=False)
+    l_salient, salient_pred_l = batch_to_grid(l_salient), batch_to_grid(salient_pred_l)
+    l_cat = np.concatenate((l_input, target, pred, l_salient, salient_pred_l), axis=1)
+    h, w, c = l_cat.shape[:]
+    if ul_input is None and ul_pred is None:
+        return l_cat
+    
+    ul_input = batch_to_grid(ul_input)
+    ul_pred = batch_to_grid(pred_to_colormap(ul_pred, colormap=colormap), transpose=False)
+    ul_salient, salient_pred_ul = batch_to_grid(ul_salient), batch_to_grid(salient_pred_ul)
+    ul_mix = mix_input_pred(ul_input, ul_pred)
+    interval = np.ones((h, 20, c), dtype=np.float64)
+
+    cat_img = np.concatenate((l_cat, interval, ul_mix, ul_salient, salient_pred_ul), axis=1)
     if resize_factor is not None:
         cat_img = cv2.resize(cat_img, dsize=(0,0), fx=resize_factor, fy=resize_factor, interpolation=cv2.INTER_LINEAR)
     return cat_img
@@ -92,7 +131,7 @@ def make_example_img_slic(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray
     if resize_factor is not None:
         cat_img = cv2.resize(cat_img, dsize=(0,0), fx=resize_factor, fy=resize_factor, interpolation=cv2.INTER_LINEAR)
     return cat_img
-def save_img(img_dir:str, filename:str, img:np.ndarray, resize_factor = 0.5):
+def save_img(img_dir:str, filename:str, img:np.ndarray):
     plt.imsave(os.path.join(img_dir, filename), img)
 
 def save_img_list(img_dir, filename_list:List[str], img_list:List[np.ndarray]):

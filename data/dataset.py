@@ -114,7 +114,7 @@ class SalientDataset(Dataset):
                 target = target.resize(self.resize, resample=Image.Resampling.NEAREST)
         
         img = TF.to_tensor(img)
-        salient_map = torch.from_numpy(np.array(salient_map)/255)
+        salient_map = torch.from_numpy(np.array(salient_map)/255).to(torch.float)
         target = torch.from_numpy(np.array(target)) if target is not None else None
         if target is None:
             return {'filename':filename, 'img':img, 'salient_map':salient_map}

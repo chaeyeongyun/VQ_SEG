@@ -71,13 +71,19 @@ def make_graph(grid):
 	return vertices, edges
 	
 
-def get_saliency_rbd(img_path):
+def get_saliency_rbd(img_path, 
+                     n_segments=250, 
+                     sigma_clr = 10.0,
+					 sigma_bndcon = 1.0,
+					 sigma_spa = 0.25,
+					 mu = 0.1,
+      				 resize=(512, 512)):
 
 	# Saliency map calculation based on:
 	# Saliency Optimization from Robust Background Detection, Wangjiang Zhu, Shuang Liang, Yichen Wei and Jian Sun, IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2014
 
 	img = skimage.io.imread(img_path)
-
+	img = skimage.transform.resize(img, resize) if resize else img
 	if len(img.shape) != 3: # got a grayscale image
 		img = skimage.color.gray2rgb(img)
 
@@ -89,7 +95,7 @@ def get_saliency_rbd(img_path):
     
 	# f_slic = Slic(num_components=250, compactness=10, min_size_factor=0)
 	# segments_slic = f_slic.iterate(img) # Cluster Map, 0부터 시작
-	segments_slic = slic(img_rgb, n_segments=250, compactness=10, sigma=1, enforce_connectivity=False, start_label=0)
+	segments_slic = slic(img_rgb, n_segments=n_segments, compactness=10, sigma=1, enforce_connectivity=False, start_label=0)
 
 	num_segments = len(np.unique(segments_slic)) # 250
 
@@ -141,11 +147,7 @@ def get_saliency_rbd(img_path):
 	smoothness = np.zeros((len(vertices),len(vertices)),dtype=float)
 	adjacency = np.zeros((len(vertices),len(vertices)),dtype=float)
 
-	sigma_clr = 10.0
-	sigma_bndcon = 1.0
-	sigma_spa = 0.25
-	mu = 0.1
-
+	
 	all_shortest_paths_color = nx.shortest_path(G,source=None,target=None,weight='weight')
 
 	for v1 in vertices:
