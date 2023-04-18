@@ -249,7 +249,7 @@ if __name__ == "__main__":
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
-    cfg.project_name = 'VQUnet_kmenas_salient_max'
+    cfg.project_name = 'VQUnet_kmenas_salient_ratio'
     cfg.train.criterion = "dice_loss"
     cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
     train(cfg)

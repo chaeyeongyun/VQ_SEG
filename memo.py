@@ -17,10 +17,21 @@ if __name__ == '__main__':
     # with tarfile.open("mytext.tar.gz",'w:gz') as mytar:
     #     mytar.add('./ttt')
     folders  = ["/content/data/semi_sup_data/CWFID/num30/train/input", "/content/data/semi_sup_data/CWFID/num30/test/input"]
-    save = "/content/data/semi_sup_data/CWFID/salient_map"
+    # folders  = ["/content/data/semi_sup_data/CWFID/num30/test/input"]
+    save = "/content/data/semi_sup_data/CWFID/salient_map_2"
+    os.makedirs(save, exist_ok=True)
     for folder in folders:
         imgs = glob(os.path.join(folder, "*.png"))
+        params = {"n_segments":250,
+                  "sigma_clr":5.0,
+                  "sigma_bndcon":0.4,
+                  "sigma_spa":8,
+                  "mu":0.1}
+        f = open(os.path.join(save, 'params.txt'), 'w')
+        f.write(f"{params}")
+        f.close()
         for img in tqdm(imgs):
-            rbd = get_saliency_rbd(img).astype('uint8')
+            rbd = rbd = get_saliency_rbd(img, 
+                     **params).astype('uint8')
             filename = os.path.split(img)[-1]
             plt.imsave(os.path.join(save, filename), rbd, cmap='gray')

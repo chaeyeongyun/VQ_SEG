@@ -1,4 +1,3 @@
-#TODO: debugging
 import argparse
 import matplotlib.pyplot as plt
 import os
@@ -6,10 +5,10 @@ from itertools import cycle
 from tqdm import tqdm
 import time
 import wandb
-import numpy as np
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 import models
@@ -18,56 +17,20 @@ from utils.ckpoints import  save_ckpoints, load_ckpoints, save_tar
 from utils.load_config import get_config_from_json
 from utils.device import device_setting
 from utils.processing import detach_numpy
-from utils.visualize import make_example_img_slic, save_img
+from utils.visualize import make_example_img_salient_loss, save_img
 from utils.seg_tools import img_to_label
 from utils.lr_schedulers import WarmUpPolyLR, CosineAnnealingLR
 
 
-from data.dataset import BaseDataset
+from data.dataset import BaseDataset, SalientDataset
 
 from loss import make_loss
 from measurement import Measurement
 
-from fast_slic import Slic
-from skimage.segmentation import mark_boundaries 
+def upscalex2(tensor:torch.Tensor, mode='nearest'):
+    return F.interpolate(tensor, scale_factor=2, mode=mode)
 
-def where_index(tensor:torch.Tensor, i):
-    result = tensor==i
-    result = result.nonzero(as_tuple=True)
-    return result
-def replace_with_mean(pred, means, n_ind, y_ind, x_ind):
-    for i in range(len(pred)):
-        pred[n_ind[n_ind==i], :, y_ind[n_ind==i], x_ind[n_ind==i]] = \
-            pred[n_ind[n_ind==i], :, y_ind[n_ind==i], x_ind[n_ind==i]]*means[i]/pred[n_ind[n_ind==i], :, y_ind[n_ind==i], x_ind[n_ind==i]]
-    return pred
-
-def slic_batch(batch, return_img):
-    np_batch = batch.detach().cpu().numpy()*255
-    np_batch = np_batch.astype('uint8')
-    results = []
-    imgs = [] if return_img else None
-    try:
-        del f_slic
-    except:
-        pass
-    for img in np_batch:
-        f_slic = Slic(num_components=1600, compactness=10, min_size_factor=0)
-        results.append(f_slic.iterate(img))
-        if return_img:
-            imgs.append(mark_boundaries(img)/255)
-        del f_slic
-    imgs = np.stack(results, axis=0) if imgs is not None else None
-    return torch.from_numpy(np.stack(results, axis=0)), imgs
-
-def superpixel_mean(input, pred, return_img):
-    superpixel, imgs = slic_batch(input, return_img)
-    vertices = torch.unique(superpixel)
-    for ver in vertices:
-        (n_ind, y_ind, x_ind) = where_index(superpixel, ver)
-        means = torch.mean(torch.mean(pred[n_ind, :, y_ind, x_ind], dim=-1), dim=-1) # N, C
-        pred = replace_with_mean(pred, means, n_ind, y_ind, x_ind)
-    return pred, imgs
-    
+# 일단 no cutmix version
 def train(cfg):
     if cfg.wandb_logging:
         logger_name = cfg.project_name+str(len(os.listdir(cfg.train.save_dir)))
@@ -102,12 +65,12 @@ def train(cfg):
                         mode='fan_in', nonlinearity='relu')
     
     criterion = make_loss(cfg.train.criterion, num_classes, ignore_index=255)
+    axiliary_criterion = nn.MSELoss()
+    sup_dataset = SalientDataset(os.path.join(cfg.train.data_dir, 'train'), cfg.train.salient_dir, split='labelled', resize=cfg.resize)
+    unsup_dataset = SalientDataset(os.path.join(cfg.train.data_dir, 'train'), cfg.train.salient_dir, split='unlabelled', resize=cfg.resize)
     
-    sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled', resize=cfg.resize)
-    unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled', resize=cfg.resize)
-    
-    sup_loader = DataLoader(sup_dataset, batch_size=batch_size, shuffle=True)
-    unsup_loader = DataLoader(unsup_dataset, batch_size=batch_size, shuffle=True)
+    sup_loader = DataLoader(sup_dataset, batch_size=batch_size, shuffle=False)
+    unsup_loader = DataLoader(unsup_dataset, batch_size=batch_size, shuffle=False)
     
     
     if cfg.train.lr_scheduler.name == 'warmuppoly':
@@ -126,12 +89,14 @@ def train(cfg):
     # progress bar
     cps_loss_weight = cfg.train.cps_loss_weight
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
+    axiliary_loss_weight = cfg.train.axiliary_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
     for epoch in range(num_epochs):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
         crop_iou, weed_iou, back_iou = 0, 0, 0
         sum_cps_loss, sum_sup_loss_1, sum_sup_loss_2 = 0, 0, 0
         sum_commitment_loss = 0
+        sum_salient_loss = 0
         sum_loss = 0
         sum_miou = 0
         ep_start = time.time()
@@ -139,8 +104,10 @@ def train(cfg):
         for batch_idx in pbar:
             sup_dict, unsup_dict = next(trainloader)
             l_input, l_target = sup_dict['img'], sup_dict['target']
+            l_salient = sup_dict['salient_map'].to(device)
             l_target = img_to_label(l_target, cfg.pixel_to_label)
             ul_input = unsup_dict['img']
+            ul_salient = unsup_dict['salient_map'].to(device)
             ## predict in supervised manner ##
             optimizer_1.zero_grad()
             optimizer_2.zero_grad()
@@ -149,20 +116,19 @@ def train(cfg):
             ul_input = ul_input.to(device)
      
             with torch.cuda.amp.autocast(enabled=half):
-                pred_sup_1, commitment_loss_l1, code_usage_l1 = model_1(l_input)
-                pred_sup_2, commitment_loss_l2, code_usage_l2 = model_2(l_input)
-                pred_sup_1, sup_silc = superpixel_mean(input=l_input, pred=pred_sup_1, return_img=True)
-                pred_sup_2, _ = superpixel_mean(input=l_input, pred=pred_sup_2, return_img=False)
+                pred_sup_1, commitment_loss_l1, code_usage_l1, salient_pred_l1 = model_1(l_input)
+                pred_sup_2, commitment_loss_l2, code_usage_l2, salient_pred_l2 = model_2(l_input)
+                
                 ## predict in unsupervised manner ##
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1 = model_1(ul_input)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2 = model_2(ul_input)
-                pred_ul_1, ul_slic = superpixel_mean(input=ul_input, pred=pred_ul_1, return_img=True)
-                pred_ul_2, _ = superpixel_mean(input=ul_input, pred=pred_ul_2, return_img=False)
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1, salient_pred_ul1 = model_1(ul_input)
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2, salient_pred_ul2 = model_2(ul_input)
+                
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             ## cps loss ##
             pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
             pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
+            
             # pseudo label
             pseudo_1 = torch.argmax(pred_1, dim=1).long()
             pseudo_2 = torch.argmax(pred_2, dim=1).long()
@@ -177,7 +143,12 @@ def train(cfg):
                 sup_loss = sup_loss_1 + sup_loss_2
                 
                 commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
-                
+                l_salient = F.interpolate(l_salient.unsqueeze(1), salient_pred_l1.shape[-2:], mode='nearest')
+                ul_salient = F.interpolate(ul_salient.unsqueeze(1), salient_pred_ul1.shape[-2:], mode='nearest')
+                salient_loss = axiliary_criterion(salient_pred_l1, l_salient) + \
+                                axiliary_criterion(salient_pred_l2, l_salient) + \
+                                axiliary_criterion(salient_pred_ul1, ul_salient) + \
+                                axiliary_criterion(salient_pred_ul2, ul_salient)
                 ## learning rate update
                 current_idx = epoch * len(unsup_loader) + batch_idx
                 learning_rate = lr_scheduler.get_lr(current_idx)
@@ -185,7 +156,9 @@ def train(cfg):
                 optimizer_1.param_groups[0]['lr'] = learning_rate
                 optimizer_2.param_groups[0]['lr'] = learning_rate
                 
-                loss = sup_loss + cps_loss_weight*cps_loss + total_commitment_loss_weight*commitment_loss
+                loss = sup_loss + cps_loss_weight*cps_loss + \
+                    total_commitment_loss_weight*commitment_loss + \
+                    axiliary_loss_weight*salient_loss
                 sum_code_usage += (code_usage_l1 + code_usage_l2 + code_usage_ul1 + code_usage_ul2) / 4 
                 
             scaler.scale(loss).backward()
@@ -201,6 +174,7 @@ def train(cfg):
             sum_sup_loss_1 += sup_loss_1.item()
             sum_sup_loss_2 += sup_loss_2.item()
             sum_commitment_loss += commitment_loss.item()
+            sum_salient_loss += salient_loss.item()
             back_iou += iou_list[0]
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
@@ -218,17 +192,18 @@ def train(cfg):
         sup_loss_1 = sum_sup_loss_1 / len(unsup_loader)
         sup_loss_2 = sum_sup_loss_2 / len(unsup_loader)
         commitment_loss = sum_commitment_loss / len(unsup_loader)
+        salient_loss = sum_salient_loss / len(unsup_loader)
         loss = sum_loss / len(unsup_loader)
         miou = sum_miou / len(unsup_loader)
         
         print_txt = f"[Epoch{epoch}]" \
-                            + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
+                            + f"miou={miou:.4f}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}, salient_loss={salient_loss:.4f}"
         print(print_txt)
         if logger != None:
             log_txt.write(print_txt)
-            params = [l_input, l_target, pred_sup_1, ul_input, pred_ul_1]
+            params = [l_input, l_target, pred_sup_1, ul_input, pred_ul_1, upscalex2(l_salient), upscalex2(ul_salient), upscalex2(salient_pred_l1), upscalex2(salient_pred_ul1)]
             params = [detach_numpy(i) for i in params]
-            example = make_example_img_slic(*params, l_slic, ul_slic)
+            example = make_example_img_salient_loss(*params)
             logger.image_update(example, f'{epoch}ep')
             if cfg.train.save_img:
                 save_img(img_dir, f'output_{epoch}ep.png', example)
@@ -265,17 +240,23 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/cps_vqv2_kmeans_salient.json')
+    parser.add_argument('--config_path', default='./config/cps_vqv2_salient_loss.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    cfg.resize=32
-    cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.resize=32
+    # cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.resize = 256
-    
+    # train(cfg)
     cfg.train.criterion = "dice_loss"
     cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
+    cfg.train.axiliary_loss_weight = 1
     train(cfg)
     
+    cfg.train.axiliary_loss_weight = 0.5
+    train(cfg)
+    
+    cfg.train.axiliary_loss_weight = 0.25
+    train(cfg)
