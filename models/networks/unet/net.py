@@ -210,26 +210,16 @@ class VQUnetwithSalientloss(nn.Module):
         decoder_out = self.decoder(*features)
         output = self.segmentation_head(decoder_out)
         
-        auxiliary_output = self.auxiliary_decoder(features[-1])
-        
+        if self.training:
+            auxiliary_output = self.auxiliary_decoder(features[-1])
+        else:
+            return output, loss, torch.tensor(code_usage_lst)
         if code_usage_loss : 
             usage_loss = usage_loss / len(features)
             return output, loss, torch.tensor(code_usage_lst), usage_loss, auxiliary_output
         return output, loss, torch.tensor(code_usage_lst), auxiliary_output
     
-    def load_pretrained(self, encoder_weights_path, codebook_weights_path):
-        print(f"... load pretrained weights ... \nencoder:{encoder_weights_path}, codebook:{codebook_weights_path}")
-        encoder_weights = torch.load(encoder_weights_path)
-        codebook_weights = torch.load(codebook_weights_path)
-        self.encoder.load_state_dict(encoder_weights)
-        self.codebook.load_state_dict(codebook_weights)
-    
-    def freeze_encoder(self):
-        for param in self.encoder.parameters():
-            param.requires_grad = False
         
-        for param in self.codebook.parameters():
-            param.requires_grad = False
             
 class Unet(nn.Module):
     def __init__(

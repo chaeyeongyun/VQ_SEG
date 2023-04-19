@@ -24,7 +24,7 @@
     "train":{
         "data_dir":"../data/semi_sup_data/CWFID/num30",
         "save_dir":"../drive/MyDrive/semi_sup_train/CWFID",
-        "salient_dir":"../data/semi_sup_data/CWFID/salient_map",
+        "salient_dir":"../data/semi_sup_data/CWFID/salient_map_2",
         "device":0,
         "num_epochs":400,
         "batch_size":4,
@@ -53,7 +53,6 @@
     "test":{
         "data_dir":"../data/semi_sup_data/CWFID/num30",
         "save_dir":"../drive/MyDrive/semi_sup_test/CWFID",
-        "salient_dir":"../drive/MyDrive/semi_sup_data/salient_map",
         "device":0,
         "batch_size":1,
         "weights":""

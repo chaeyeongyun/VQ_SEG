@@ -74,7 +74,7 @@ def test(cfg):
             "visualize":make_img_table(best_result.visualize.filename, best_result.visualize.viz_v1, best_result.visualize.viz_v2, columns=["filename", 'viz_v1', "viz_v2"])
             }
         logger.logging()
-    print(best_result.result_txt)
+    print("best_result:\n"+best_result.result_txt)
     if logger is not None: 
         logger.finish()
 def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label_map:dict, testloader:DataLoader, device:torch.device):
@@ -173,13 +173,14 @@ if __name__ == "__main__":
     #     test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    cfg = get_config_from_json('./config/cps_vqv2_kmeans_init.json')
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_kmeans_init116/ckpoints", "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_kmeans_init117/ckpoints"]
-    cfg.resize = 512
-    num_embeddings_l = [[0, 0, 512, 512, 512], [0, 0, 2048, 2048, 2048]]
-    for w, ne in zip(w_l, num_embeddings_l):
+    cfg = get_config_from_json('./config/cps_vqv2_salient_loss.json')
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_salient_loss62/ckpoints", "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_salient_loss63/ckpoints", "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_salient_loss64/ckpoints"]
+    for w in w_l:
+        # debug
+        # cfg.resize=32
+        # cfg.project_name = 'debug'
+        # cfg.wandb_logging = False
         cfg.test.weights = w
-        cfg.model.params.vq_cfg.num_embeddings = ne
         test(cfg)
         
     # cfg = get_config_from_json("./config/cps_vqv1.json")
