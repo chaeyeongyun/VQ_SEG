@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 
 class BaseDataset(Dataset):
-    def __init__(self, data_dir, split, resize=None, target_resize=True):
+    def __init__(self, data_dir:str, split:str, batch_size:int=None, resize:int=None, target_resize:bool=True):
         super().__init__()
         if type(resize)==int:
             self.resize = (resize, resize)
@@ -32,6 +32,9 @@ class BaseDataset(Dataset):
         else:
             raise ValueError(f"split has to be labelled or unlabelled")
         
+        if batch_size is not None and len(self.filenames) % batch_size != 0:
+                self.filenames = self.filenames + self.filenames[0:batch_size-len(self.filenames) % batch_size]
+                
     def __len__(self):
         return len(self.filenames)
     

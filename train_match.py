@@ -19,6 +19,7 @@ from utils.processing import detach_numpy
 from utils.visualize import make_example_img, save_img
 from utils.seg_tools import img_to_label
 from utils.lr_schedulers import WarmUpPolyLR, CosineAnnealingLR
+from utils.augmentation import random_similarity_transform, inverse_similarity_transform
 from utils.seed import seed_everything
 
 from data.dataset import BaseDataset
@@ -39,7 +40,9 @@ def train(cfg):
             img_dir = os.path.join(save_dir, 'imgs')
             os.mkdir(img_dir)
         log_txt = open(os.path.join(save_dir, 'log_txt'), 'w')
-    logger = Logger(cfg, logger_name) if cfg.wandb_logging else None
+        logger = Logger(cfg, logger_name)
+    else: logger = None
+     
     
     half=cfg.train.half
     
@@ -63,11 +66,11 @@ def train(cfg):
     
     criterion = make_loss(cfg.train.criterion, num_classes, ignore_index=255)
     
-    sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
+    sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled', batch_size=batch_size, resize=cfg.resize)
     unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled',  batch_size=batch_size, resize=cfg.resize)
     
-    sup_loader = DataLoader(sup_dataset, batch_size=batch_size, shuffle=True)
-    unsup_loader = DataLoader(unsup_dataset, batch_size=batch_size, shuffle=True)
+    sup_loader = DataLoader(sup_dataset, batch_size=batch_size, shuffle=False)
+    unsup_loader = DataLoader(unsup_dataset, batch_size=batch_size, shuffle=False)
     
     
     if cfg.train.lr_scheduler.name == 'warmuppoly':
@@ -106,14 +109,20 @@ def train(cfg):
             optimizer_2.zero_grad()
             l_input = l_input.to(device)
             l_target = l_target.to(device)
-            ul_input = ul_input.to(device)
+            
      
             with torch.cuda.amp.autocast(enabled=half):
                 pred_sup_1, commitment_loss_l1, code_usage_l1 = model_1(l_input)
                 pred_sup_2, commitment_loss_l2, code_usage_l2 = model_2(l_input)
                 ## predict in unsupervised manner ##
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1 = model_1(ul_input)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2 = model_2(ul_input)
+                # similarity transfrom augmentatation randomly
+                ul_input_aug_1, aug_num_1 = random_similarity_transform(ul_input)
+                ul_input_aug_2, aug_num_2  = random_similarity_transform(ul_input)
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1 = model_1(ul_input_aug_1.to(device))
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2 = model_2(ul_input_aug_2.to(device))
+                # inverse transform of silmilarity transform
+                pred_ul_1 = inverse_similarity_transform(pred_ul_1, aug_num=aug_num_1)
+                pred_ul_2 = inverse_similarity_transform(pred_ul_2, aug_num=aug_num_2)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             ## cps loss ##
@@ -221,17 +230,17 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/cps_vqv2.json')
+    parser.add_argument('--config_path', default='./config/cps_vqv2_match.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    # cfg.resize=32
+    # cfg.resize=64
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
-    cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
+    cfg.train.batch_size=3
     cfg.train.criterion = "dice_loss"
     cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
     train(cfg)

@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 from models.networks.unet.decoder import UnetDecoder
@@ -5,7 +7,7 @@ from models.encoders import make_encoder
 from models.modules.segmentation_head import SegmentationHead
 from vector_quantizer.vq_img import VectorQuantizer
 from vector_quantizer import make_vq_module
-import copy
+
  
 class VQUnet_v1(nn.Module):
     def __init__(
@@ -66,6 +68,7 @@ class VQUnet_v2(nn.Module):
         encoder_name:str,
         num_classes:int,
         vq_cfg:dict,
+        encoder_weights:None,
         in_channels:int=3,
         decoder_channels=None,
         depth:int=5,
@@ -74,7 +77,7 @@ class VQUnet_v2(nn.Module):
         ):
         super().__init__()
         
-        self.encoder = make_encoder(encoder_name, in_channels, depth)    
+        self.encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights)    
         encoder_channels = self.encoder.out_channels()
         
         # if isinstance(vq_cfg.num_embeddings, (int)):
