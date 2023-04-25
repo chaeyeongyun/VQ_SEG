@@ -18,6 +18,6 @@ def make_encoder(name:str, in_channels:int, depth:int=5, weights=None, **kwargs)
                 load_settings = settings.self_sup_settings[name]["swsl"]
             else:
                 assert NotImplementedError('It''s not available weights option' )
-        encoder.load_state_dict(model_zoo.load_url(load_settings["url"]))
+            encoder.load_state_dict(model_zoo.load_url(load_settings["url"]))
 
     return encoder

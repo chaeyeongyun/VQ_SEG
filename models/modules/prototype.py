@@ -16,30 +16,42 @@ class PrototypeLoss(nn.Module):
         self.margin = margin
         
         self.embedding = nn.Embedding(num_embeddings=num_classes,
-                                        embedding_dim=embedding_dim, )
+                                        embedding_dim=embedding_dim)
         # uniform distribution initialization
-        self.embedding.weight.data.uniform_(-1/self.num_embeddings, 1/self.num_embeddings)
+        self.embedding.weight.data.uniform_(-1/num_classes, 1/num_classes)
+        if self.use_feature:
+            for p in self.embedding.parameters():
+                p.requires_grad = False
+                
     def forward(self, x, gt):
+        if gt.dim() == 3: gt = gt.unsqueeze(1)
         if gt.shape != x.shape:
-            gt = F.interpolate(gt, x.shape[-2:], mode='nearest')
+            gt = F.interpolate(gt.float(), x.shape[-2:], mode='nearest')
 
         b, c, h, w = x.shape[:]
         flatten_x = rearrange(x, 'b c h w -> (b h w) c')
         flatten_gt = rearrange(gt, 'b c h w -> (b h w) c')
+        
         if self.use_feature:
+            temp = []
             for i in range(self.num_classes):
-                ind = (flatten_gt == i).nonzero(as_tuple=True)[0]
-                flatten_x[]
+                ind = (flatten_gt == i).nonzero(as_tuple=True)
+                temp.append(torch.mean(flatten_x[ind[0]], dim=0, keepdim=True)) # (1, C)
+            temp = torch.cat(temp, dim=0)
+            self.embedding.weight.data = temp
+        
         # l1 norm
-        self.embedding.weight.data = l1norm(self.embedding.weigh.data, dim=-1) # (num_classes, feat_num)
+        self.embedding.weight.data = l1norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
         flatten_x = l1norm(flatten_x, dim=-1)
         # cosine
         cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
         # scale
         cosine = self.scale * cosine
         # margin
-        cosine[:,flatten_gt.long()] = cosine[:, flatten_gt.long()] + self.margin
-        positive = cosine[:, flatten_gt.long()] #(BHW,)
+        row_range = torch.arange(0, b*h*w).long()
+        cosine[row_range,flatten_gt[:,0].long()] = cosine[row_range, flatten_gt[:,0].long()] + self.margin
+        
+        positive = cosine[row_range, flatten_gt[:,0].long()] #(BHW,)
         sum_all = torch.sum(cosine, dim=-1) # (BHW, )
         loss = torch.mean(torch.log(positive / sum_all))
         return loss

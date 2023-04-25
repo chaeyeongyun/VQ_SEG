@@ -35,16 +35,27 @@
 #                      **params).astype('uint8')
 #             filename = os.path.split(img)[-1]
 #             plt.imsave(os.path.join(save, filename), rbd, cmap='gray')
-class Test():
-    def __init__(self):
-        print("exec")
-        self.init = False
-    def initialize(self):
-        self.init = True
-for i in range(5):
-    print(f"i: {i}")
-    obj = Test()
+# class Test():
+#     def __init__(self):
+#         print("exec")
+#         self.init = False
+#     def initialize(self):
+#         self.init = True
+# for i in range(5):
+#     print(f"i: {i}")
+#     obj = Test()
     
-    obj.initialize()
-    
-    
+#     obj.initialize()
+from easydict import EasyDict
+from models.networks.unet import VQ_PT_Unet
+import torch
+model = VQ_PT_Unet('resnet50', 3, 
+                vq_cfg=EasyDict({
+                "num_embeddings":[0, 0, 512, 512, 512],
+                "distance":"euclidean",
+                "kmeans_init": True
+                }),
+                )
+x = torch.randn(2, 3, 256, 256)
+gt = torch.randint(0, 2, (2, 1, 256, 256), requires_grad=False).float()
+model(x, gt)

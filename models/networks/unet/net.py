@@ -142,13 +142,16 @@ class VQUnet_v2(nn.Module):
         for param in self.codebook.parameters():
             param.requires_grad = False
 
-class VQ_PT_Unet(nn.Module):
+class VQPTUnet(nn.Module):
     def __init__(
         self, 
         encoder_name:str,
         num_classes:int,
         vq_cfg:dict,
-        encoder_weights:None,
+        margin=1.5,
+        scale=1.,
+        use_feature=False,
+        encoder_weights=None,
         in_channels:int=3,
         decoder_channels=None,
         depth:int=5,
@@ -171,8 +174,9 @@ class VQ_PT_Unet(nn.Module):
                                                   upsampling=upsampling,
                                                   activation=activation,
                                                   kernel_size=3)
-        self.prototype_loss = 
-    def forward(self, x, code_usage_loss=False):
+        self.prototype_loss = PrototypeLoss(num_classes, decoder_channels[-1], margin=margin, scale=scale, use_feature=use_feature)
+    
+    def forward(self, x, gt, code_usage_loss=False):
         features = self.encoder(x)[1:]
         if len(features) != len(self.codebook) : raise NotImplementedError
         
@@ -192,11 +196,26 @@ class VQ_PT_Unet(nn.Module):
         # mean
         loss = loss / len(features)
         decoder_out = self.decoder(*features)
+        prototype_loss = self.prototype_loss(decoder_out, gt)
         output = self.segmentation_head(decoder_out)
         if code_usage_loss : 
             usage_loss = usage_loss / len(features)
             return output, loss, torch.tensor(code_usage_lst), usage_loss
-        return output, loss, torch.tensor(code_usage_lst)
+        return output, loss, torch.tensor(code_usage_lst), prototype_loss
+    
+    @torch.no_grad()
+    def pseudo_label(self, x):
+        features = self.encoder(x)[1:]
+        if len(features) != len(self.codebook) : raise NotImplementedError
+        
+        for i in range(len(features)):
+            quantize, _, _, _ = self.codebook[i](features[i])
+            features[i] = quantize
+        
+        decoder_out = self.decoder(*features)
+        output = self.segmentation_head(decoder_out)
+        return torch.argmax(output, dim=1).long()
+        
     
     def load_pretrained(self, encoder_weights_path, codebook_weights_path):
         print(f"... load pretrained weights ... \nencoder:{encoder_weights_path}, codebook:{codebook_weights_path}")
