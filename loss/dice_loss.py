@@ -17,7 +17,7 @@ def dice_coefficient(pred:torch.Tensor, target:torch.Tensor, num_classes:int):
         # target is onehot label
     else:
         target = target.type(pred.type()) # target과 pred의 type을 같게 만들어준다.
-        target = torch.eye(num_classes)[target.long()].to(pred.device) # (N, H, W, num_classes)
+        target = torch.eye(num_classes, device=pred.device)[target.long()].to(pred.device) # (N, H, W, num_classes)
         target = target.permute(0, 3, 1, 2) # (N, num_classes, H, W)
         pred = F.softmax(pred, dim=1)
     
