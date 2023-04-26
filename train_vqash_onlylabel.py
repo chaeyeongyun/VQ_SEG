@@ -240,21 +240,26 @@ if __name__ == "__main__":
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
-    cfg.project_name = 'vqash_only_label'
-    cfg.train.save_as_tar = True
+    # cfg.project_name = 'vqash_only_label'
+    # cfg.train.save_as_tar = True
    
-    # 2. imagenet weight x
+    # # 2. imagenet weight x
+    # cfg.model.params.encoder_weights = None
+    # cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
+    # train(cfg)
+    
+    # cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
+    # train(cfg)
+    
+    #  # 1. imagenet weight o
+    # cfg.model.params.encoder_weights = "imagenet_swsl"
+    # cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
+    # train(cfg)
+    
+    # cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
+    # train(cfg)
+    cfg.project_name = 'vqash_only_label'
     cfg.model.params.encoder_weights = None
-    cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
     train(cfg)
-    
-    cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
-    train(cfg)
-    
-     # 1. imagenet weight o
     cfg.model.params.encoder_weights = "imagenet_swsl"
-    cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
-    train(cfg)
-    
-    cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
     train(cfg)

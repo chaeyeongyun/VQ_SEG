@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
+from utils.seg_tools import label_to_onehot
 
 def l1norm(t:torch.Tensor, dim):
     return F.normalize(t, p=1, dim=dim)
@@ -56,16 +57,17 @@ class AngularSegmentationHead(nn.Module):
         cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
         loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
         if self.training and gt is not None:
-            if gt.dim() == 3: gt = gt.unsqueeze(1)
-            flatten_gt = rearrange(gt, 'b c h w -> (b h w) c')
+            gt = label_to_onehot(gt, self.num_classes)
+            flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, num_classes)
+            
+            # margin
+            cosine = cosine + self.margin * flatten_gt
             # scale
             cosine = self.scale * cosine
-            # margin
-            row_range = torch.arange(0, x_b*x_h*x_w).long()
-            cosine[row_range,flatten_gt[:,0].long()] = cosine[row_range, flatten_gt[:,0].long()] + self.margin
-            positive = cosine[row_range, flatten_gt[:,0].long()] #(BHW,)
-            sum_all = torch.sum(cosine, dim=-1) # (BHW, )
-            loss = loss - torch.mean(torch.log(positive / sum_all))
+            
+            positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
+            sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
+            loss = -torch.mean(torch.log(positive / sum_all)) 
         pred = rearrange(cosine, '(b h w) p -> b h w p', b=x_b, h=x_h, w=x_w, p=self.num_classes)
         pred = rearrange(pred, 'b h w p -> b p h w')
         pred = self.activation(pred)

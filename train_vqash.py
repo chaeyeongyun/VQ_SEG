@@ -237,26 +237,30 @@ if __name__ == "__main__":
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=32
-    # cfg.project_name = 'debug'
-    # cfg.wandb_logging = False
-    # cfg.train.half=False
+    cfg.project_name = 'debug'
+    cfg.wandb_logging = False
+    cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
     
-    cfg.train.save_as_tar = True
+    # cfg.train.save_as_tar = True
    
-    # 2. imagenet weight x
-    cfg.model.params.encoder_weights = None
-    cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
-    train(cfg)
+    # # 2. imagenet weight x
+    # cfg.model.params.encoder_weights = None
+    # cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
+    # train(cfg)
 
-    cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
-    train(cfg)
+    # cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
+    # train(cfg)
     
-     # 1. imagenet weight o
-    cfg.model.params.encoder_weights = "imagenet_swsl"
-    cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
-    train(cfg)
+    #  # 1. imagenet weight o
+    # cfg.model.params.encoder_weights = "imagenet_swsl"
+    # cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
+    # train(cfg)
 
-    cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
+    # cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
+    # train(cfg)
+    cfg.model.params.encoder_weights = None
+    train(cfg)
+    cfg.model.params.encoder_weights = "imagenet_swsl"
     train(cfg)

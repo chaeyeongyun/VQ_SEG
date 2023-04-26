@@ -3,6 +3,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from einops import rearrange
+from utils.seg_tools import label_to_onehot
 
 def l1norm(t:torch.Tensor, dim):
     return F.normalize(t, p=1, dim=dim)
@@ -24,13 +25,13 @@ class PrototypeLoss(nn.Module):
                 p.requires_grad = False
                 
     def forward(self, x, gt):
-        if gt.dim() == 3: gt = gt.unsqueeze(1)
+        gt = label_to_onehot(gt, self.num_classes)
         if gt.shape != x.shape:
             gt = F.interpolate(gt.float(), x.shape[-2:], mode='nearest')
 
         b, c, h, w = x.shape[:]
         flatten_x = rearrange(x, 'b c h w -> (b h w) c')
-        flatten_gt = rearrange(gt, 'b c h w -> (b h w) c')
+        flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, num_classes)
         
         if self.use_feature:
             temp = []
@@ -45,15 +46,13 @@ class PrototypeLoss(nn.Module):
         flatten_x = l1norm(flatten_x, dim=-1)
         # cosine
         cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
+        # margin
+        cosine = cosine + self.margin * flatten_gt
         # scale
         cosine = self.scale * cosine
-        # margin
-        row_range = torch.arange(0, b*h*w).long()
-        cosine[row_range,flatten_gt[:,0].long()] = cosine[row_range, flatten_gt[:,0].long()] + self.margin
-        
-        positive = cosine[row_range, flatten_gt[:,0].long()] #(BHW,)
-        sum_all = torch.sum(cosine, dim=-1) # (BHW, )
-        loss = torch.mean(torch.log(positive / sum_all))
+        positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
+        sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
+        loss = -torch.mean(torch.log(positive / sum_all)) 
         return loss
         
         
