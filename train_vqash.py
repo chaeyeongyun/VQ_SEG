@@ -249,8 +249,7 @@ if __name__ == "__main__":
     cfg.model.params.encoder_weights = None
     cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
     train(cfg)
-    cfg.model.params.decoder_channels = None
-    train(cfg)
+
     cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
     train(cfg)
     
@@ -258,7 +257,6 @@ if __name__ == "__main__":
     cfg.model.params.encoder_weights = "imagenet_swsl"
     cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
     train(cfg)
-    cfg.model.params.decoder_channels = None
-    train(cfg)
+
     cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
     train(cfg)
