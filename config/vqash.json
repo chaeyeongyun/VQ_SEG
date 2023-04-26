@@ -19,8 +19,8 @@
                 "distance":"euclidean",
                 "kmeans_init": true
                 },
-            "margin":8,
-            "scale":1.0,
+            "margin":0.5,
+            "scale":8.0,
             "use_feature":false,
             "encoder_weights":"imagenet_swsl"
             }

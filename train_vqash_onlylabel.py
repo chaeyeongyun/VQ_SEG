@@ -242,16 +242,18 @@ if __name__ == "__main__":
     # train(cfg)
     cfg.project_name = 'vqash_only_label'
     cfg.train.save_as_tar = True
-    # 1. imagenet weight o
-    cfg.model.params.encoder_weights = "imagenet_swsl"
+   
+    # 2. imagenet weight x
+    cfg.model.params.encoder_weights = None
     cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
     train(cfg)
     cfg.model.params.decoder_channels = None
     train(cfg)
     cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
     train(cfg)
-    # 2. imagenet weight x
-    cfg.model.params.encoder_weights = None
+    
+     # 1. imagenet weight o
+    cfg.model.params.encoder_weights = "imagenet_swsl"
     cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
     train(cfg)
     cfg.model.params.decoder_channels = None
