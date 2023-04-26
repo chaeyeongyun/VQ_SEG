@@ -29,7 +29,7 @@ class PrototypeLoss(nn.Module):
         if gt.shape != x.shape:
             gt = F.interpolate(gt.float(), x.shape[-2:], mode='nearest')
 
-        b, c, h, w = x.shape[:]
+        x_b, x_c, x_h, x_w = x.shape[:]
         flatten_x = rearrange(x, 'b c h w -> (b h w) c')
         flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, num_classes)
         
@@ -45,12 +45,18 @@ class PrototypeLoss(nn.Module):
         self.embedding.weight.data = l1norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
         flatten_x = l1norm(flatten_x, dim=-1)
         # cosine
-        cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
+        # cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
+        cosine = torch.matmul(flatten_x, self.embedding.weight.transpose(0,1))
+       
+        x_ind = torch.arange(x_b*x_h*x_w)
         # margin
-        cosine = cosine + self.margin * flatten_gt
+        cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] + self.margin
+        # cosine = cosine + self.margin * flatten_gt
         # scale
         cosine = self.scale * cosine
-        positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
+        
+        positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
+        # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
         sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
         loss = -torch.mean(torch.log(positive / sum_all)) 
         return loss

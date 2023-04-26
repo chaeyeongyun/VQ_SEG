@@ -54,18 +54,23 @@ class AngularSegmentationHead(nn.Module):
         self.embedding.weight.data = l1norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
         flatten_x = l1norm(flatten_x, dim=-1)
          # cosine
-        cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
+        # cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes) slow...
+        cosine = torch.matmul(flatten_x, self.embedding.weight.transpose(0,1))
         loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
         if self.training and gt is not None:
-            gt = label_to_onehot(gt, self.num_classes)
+            # gt = label_to_onehot(gt, self.num_classes)
+            gt = gt.unsqueeze(1) if gt.dim()==3 else gt
             flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, num_classes)
             
+            x_ind = torch.arange(x_b*x_h*x_w)
             # margin
-            cosine = cosine + self.margin * flatten_gt
+            # cosine = cosine + self.margin * flatten_gt # too slow....
+            cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] + self.margin
             # scale
             cosine = self.scale * cosine
             
-            positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
+            positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
+            # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
             sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
             loss = -torch.mean(torch.log(positive / sum_all)) 
         pred = rearrange(cosine, '(b h w) p -> b h w p', b=x_b, h=x_h, w=x_w, p=self.num_classes)
