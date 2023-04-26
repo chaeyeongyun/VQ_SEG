@@ -65,7 +65,7 @@ class AngularSegmentationHead(nn.Module):
             cosine[row_range,flatten_gt[:,0].long()] = cosine[row_range, flatten_gt[:,0].long()] + self.margin
             positive = cosine[row_range, flatten_gt[:,0].long()] #(BHW,)
             sum_all = torch.sum(cosine, dim=-1) # (BHW, )
-            loss = loss + torch.mean(torch.log(positive / sum_all))
+            loss = loss - torch.mean(torch.log(positive / sum_all))
         pred = rearrange(cosine, '(b h w) p -> b h w p', b=x_b, h=x_h, w=x_w, p=self.num_classes)
         pred = rearrange(pred, 'b h w p -> b p h w')
         pred = self.activation(pred)
