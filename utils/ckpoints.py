@@ -1,5 +1,6 @@
 import torch
 import os
+import shutil
 from torch import nn
 import tarfile
 #TODO: 수정 필요
@@ -29,3 +30,4 @@ def save_tar(target_path):
     name += '.tar.gz'
     with tarfile.open(os.path.join(head, name), 'w:gz') as t:
         t.add(target_path)
+    shutil.rmtree(target_path)
