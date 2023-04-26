@@ -97,7 +97,7 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
         mask_cpu = img_to_label(mask_img, pixel_to_label_map)
         
         with torch.no_grad():
-            pred, _, _ = model(input_img)
+            pred = model(input_img)[0]
         
         pred = F.interpolate(pred, mask_img.shape[-2:], mode='bilinear')
         pred_numpy, mask_numpy = pred.detach().cpu().numpy(), mask_cpu.cpu().numpy()
@@ -173,10 +173,8 @@ if __name__ == "__main__":
     #     test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    cfg = get_config_from_json('./config/cps_vqv2_kmeans_with_imagenet_weights.json')
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnetv2_kmeans_with_imagenet_weights83/ckpoints", 
-           "../drive/MyDrive/semi_sup_train/CWFID/VQUnetv2_kmeans_with_imagenet_weights84/ckpoints",
-           "../drive/MyDrive/semi_sup_train/CWFID/VQUnetv2_kmeans_with_imagenet_weights85/ckpoints"]
+    cfg = get_config_from_json('./config/vq_pt_unet.json')
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQPTUnet89/ckpoints"]
     
     for w in w_l:
         # debug

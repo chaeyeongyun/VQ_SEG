@@ -47,9 +47,9 @@
     
 #     obj.initialize()
 from easydict import EasyDict
-from models.networks.unet import VQ_PT_Unet
+from models.networks.unet import VQPTUnet
 import torch
-model = VQ_PT_Unet('resnet50', 3, 
+model = VQPTUnet('resnet50', 3, 
                 vq_cfg=EasyDict({
                 "num_embeddings":[0, 0, 512, 512, 512],
                 "distance":"euclidean",
