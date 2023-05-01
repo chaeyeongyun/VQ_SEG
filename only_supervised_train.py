@@ -200,5 +200,4 @@ if __name__ == "__main__":
     cfg.train.criterion = "dice_loss"
     cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
     train(cfg)
-    cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
-    train(cfg)
+   

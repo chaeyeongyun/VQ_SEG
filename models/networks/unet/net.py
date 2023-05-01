@@ -69,11 +69,11 @@ class VQUnet_v2(nn.Module):
         encoder_name:str,
         num_classes:int,
         vq_cfg:dict,
-        encoder_weights:None,
+        encoder_weights=None,
         in_channels:int=3,
         decoder_channels=None,
         depth:int=5,
-        activation=nn.Identity,
+        activation=nn.Softmax2d,
         upsampling=2,
         ):
         super().__init__()
@@ -155,7 +155,7 @@ class VQPTUnet(nn.Module):
         in_channels:int=3,
         decoder_channels=None,
         depth:int=5,
-        activation=nn.Identity,
+        activation=nn.Softmax2d,
         upsampling=2,
         ):
         super().__init__()
@@ -237,7 +237,7 @@ class VQASHUnet(nn.Module):
         in_channels:int=3,
         decoder_channels=None,
         depth:int=5,
-        activation=nn.Identity,
+        activation=nn.Softmax2d,
         upsampling=2,
         ):
         super().__init__()
@@ -252,7 +252,7 @@ class VQASHUnet(nn.Module):
         self.decoder = UnetDecoder(encoder_channels,
                                    decoder_channels)
         self.segmentation_head = AngularSegmentationHead(decoder_channels[-1], decoder_channels[-1], num_classes, decoder_channels[-1],
-                                                         scale=scale, margin=margin)
+                                                         scale=scale, margin=margin, upsampling=upsampling, activation=activation)
         
     def forward(self, x, gt=None, code_usage_loss=False):
         features = self.encoder(x)[1:]

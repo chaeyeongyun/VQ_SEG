@@ -22,7 +22,7 @@
             }
         },
     "train":{
-        "data_dir":"../data/semi_sup_data/CWFID/num30",
+        "data_dir":"../data/cropweed_total/CWFID/seg",
         "save_dir":"../drive/MyDrive/only_sup_train/CWFID",
         "device":0,
         "num_epochs":400,
