@@ -61,4 +61,40 @@ class PrototypeLoss(nn.Module):
         loss = -torch.mean(torch.log(positive / sum_all)) 
         return loss
         
+class EuclideanPrototypeLoss(nn.Module):
+    def __init__(self, num_classes, embedding_dim, use_feature=False) :
+        super().__init__()
+        self.use_feature = use_feature
+        self.num_classes = num_classes
         
+        self.embedding = nn.Embedding(num_embeddings=num_classes,
+                                        embedding_dim=embedding_dim)
+        # uniform distribution initialization
+        self.embedding.weight.data.uniform_(-1/num_classes, 1/num_classes)
+        if self.use_feature:
+            for p in self.embedding.parameters():
+                p.requires_grad = False
+                
+    def forward(self, x, gt):
+        gt = gt.unsqueeze(1) if gt.dim()==3 else gt
+        if gt.shape != x.shape:
+            gt = F.interpolate(gt.float(), x.shape[-2:], mode='nearest').long()
+
+        x_b, x_c, x_h, x_w = x.shape[:]
+        flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BHW, C)
+        flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
+        
+        indexes = [torch.nonzero(flatten_gt==i, as_tuple=True)[0] for i in range(self.num_classes)]
+        if self.use_feature:
+            temp = []
+            for i in range(self.num_classes):
+                temp.append(torch.mean(flatten_x[indexes[i]], dim=0, keepdim=True)) # (1, C)
+            temp = torch.cat(temp, dim=0) # (num_classes, C)
+            self.embedding.weight.data.copy_(temp)
+        
+        distance = torch.cdist(flatten_x.unsqueeze(0), self.embedding.weight.data.unsqueeze(0), p=2).squeeze(0) # (BHW, num_classes)
+        loss = torch.tensor([0.], device=x.device, requires_grad=self.training, dtype=torch.float32)
+        for i, idx in enumerate(indexes):
+            loss = loss + torch.mean(distance[idx, i])
+        loss = loss / self.num_classes
+        return loss

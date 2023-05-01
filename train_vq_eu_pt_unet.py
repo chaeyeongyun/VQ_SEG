@@ -232,7 +232,7 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vq_pt_unet.json')
+    parser.add_argument('--config_path', default='./config/vq_eu_pt_unet.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
@@ -243,5 +243,4 @@ if __name__ == "__main__":
     # cfg.resize = 256
     # train(cfg)
     train(cfg)
-    cfg.model.params.pop("encoder_weights")
-    train(cfg)
+    

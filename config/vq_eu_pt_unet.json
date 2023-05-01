@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQPTUnet",
+    "project_name":"VQEuclideanPTUnet",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{
@@ -9,7 +9,7 @@
     },
     "resize":512,
     "model":{
-        "name":"vqptunet",
+        "name":"vqeuptunet",
         "params":{
             "encoder_name":"resnet50",
             "num_classes":3,
@@ -19,8 +19,6 @@
                 "distance":"euclidean",
                 "kmeans_init": true
                 },
-            "margin":1.5,
-            "scale":1.0,
             "use_feature":true,
             "encoder_weights":"imagenet_swsl"
             }
