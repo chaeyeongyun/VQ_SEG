@@ -119,7 +119,7 @@ class AngularSegmentationHead(nn.Module):
         flatten_x = l1norm(flatten_x, dim=-1)
         if not self.initted and self.init == 'kmeans':
             self._kmeans_init(flatten_x)
-         # cosine
+        # cosine
         # cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes) slow...
         cosine = torch.matmul(flatten_x, self.embedding.weight.transpose(0,1))
         loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)

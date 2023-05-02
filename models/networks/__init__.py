@@ -7,6 +7,7 @@ network_dict = {
     "vqptunet":VQPTUnet,
     "vqeuptunet":VQEuPTUnet,
     "vqashunet":VQASHUnet,
+    "vqatunet": VQATUnet,
     "VQUnetwithSalientloss":VQUnetwithSalientloss
 }
 
