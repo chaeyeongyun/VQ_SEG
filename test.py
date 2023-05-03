@@ -173,8 +173,9 @@ if __name__ == "__main__":
     #     test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    cfg = get_config_from_json('./config/only_sup_kmeans.json')
-    w_l = ["../drive/MyDrive/only_sup_train/CWFID/only_sup_kmeans3/ckpoints"]
+    cfg = get_config_from_json('./config/vqatunet.json')
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQATUnet_dual_attention93/ckpoints",
+           "../drive/MyDrive/semi_sup_train/CWFID/VQATUnet_dual_attention94/ckpoints"]
     
     for w in w_l:
         # debug

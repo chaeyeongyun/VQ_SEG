@@ -6,6 +6,7 @@ network_dict = {
     "vqvaev2":VQVAEv2,
     "vqptunet":VQPTUnet,
     "vqeuptunet":VQEuPTUnet,
+    "vqnedptunet":VQNEDPTUnet,
     "vqashunet":VQASHUnet,
     "vqatunet": VQATUnet,
     "VQUnetwithSalientloss":VQUnetwithSalientloss

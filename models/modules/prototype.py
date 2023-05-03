@@ -187,10 +187,8 @@ class EuclideanPrototypeLoss(nn.Module):
         
         distance = torch.cdist(flatten_x.unsqueeze(0), self.embedding.weight.data.unsqueeze(0), p=2).squeeze(0) # (BHW, num_classes)
         loss = torch.tensor([0.], device=x.device, requires_grad=self.training, dtype=torch.float32)
-        commitment_loss = torch.tensor([0.], device=x.device, requires_grad=self.training, dtype=torch.float32)
-        for i, idx in enumerate(indexes):
-            loss = loss + torch.mean(distance[idx, i])
-        loss = loss / self.num_classes
+        x_ind = torch.arange(x_b*x_h*x_w)
+        loss = loss + torch.mean(distance[x_ind, flatten_gt[:,0]])
         return loss
     
     def _kmeans_init(self, flatten_x):    
@@ -258,6 +256,74 @@ class LearnableEuclideanPrototypeLoss(nn.Module):
         loss = loss / self.num_classes
         
         return loss * torch.sigmoid(self.alpha)
+    
+    def _kmeans_init(self, flatten_x):    
+        if self.initted:
+            return
+        
+        embed, cluster_size = kmeans(
+            flatten_x,
+            self.num_classes,
+            num_iters=10,
+        )
+        
+        self.embedding.weight.data.copy_(embed[0])
+        self.initted = True
+        
+class NEDPrototypeLoss(nn.Module):
+    def __init__(self, num_classes, embedding_dim, temperature=0.04, init='kmeans', use_feature=False) :
+        super().__init__()
+        self.use_feature = use_feature
+        self.num_classes = num_classes
+        self.init = init
+        self.temperature = temperature
+        self.embedding = nn.Embedding(num_embeddings=num_classes,
+                                        embedding_dim=embedding_dim)
+        # uniform distribution initialization
+        self.initted = False
+        if init == 'uniform':
+            # uniform distribution initialization
+            self.embedding.weight.data.uniform_(-1/num_classes, 1/num_classes)
+            self.initted = True
+        elif init == 'normal':
+            self.embedding.weight.data.normal_()
+            self.initted = True
+        elif init == 'kmeans':
+            pass
+        else:
+            raise ValueError('init has to be in [''uniform'', ''normal'', ''kmeans'']')
+          
+                
+    def forward(self, x, gt):
+        gt = gt.unsqueeze(1) if gt.dim()==3 else gt
+        if gt.shape != x.shape:
+            gt = F.interpolate(gt.float(), x.shape[-2:], mode='nearest').long()
+
+        x_b, x_c, x_h, x_w = x.shape[:]
+        flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BHW, C)
+        flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
+        
+        if not self.initted and self.init == 'kmeans':
+            self._kmeans_init(flatten_x)
+        
+        if self.use_feature:
+            indexes = [torch.nonzero(flatten_gt==i, as_tuple=True)[0] for i in range(self.num_classes)]
+            temp = []
+            for i in range(self.num_classes):
+                temp.append(torch.mean(flatten_x[indexes[i]], dim=0, keepdim=True)) # (1, C)
+            temp = torch.cat(temp, dim=0) # (num_classes, C)
+            self.embedding.weight.data.copy_(temp)
+        
+        distance = torch.cdist(flatten_x.unsqueeze(0), self.embedding.weight.data.unsqueeze(0), p=2).squeeze(0) # (BHW, num_classes)
+        # loss = torch.tensor([0.], device=x.device, requires_grad=self.training, dtype=torch.float32)
+        
+        x_ind = torch.arange(x_b*x_h*x_w, dtype=torch.long)
+        # positive = torch.exp(distance[x_ind, flatten_gt[:,0]]/self.temperature) # (BHW, )
+        # sum_all = torch.sum(torch.exp(distance/self.temperature), dim=-1) # (BHW, )
+        # loss = torch.mean(positive / sum_all)
+        loss = torch.softmax(distance/self.temperature, dim=-1)
+        loss = -torch.mean(loss[x_ind, flatten_gt[:,0]])
+        return loss
     
     def _kmeans_init(self, flatten_x):    
         if self.initted:
