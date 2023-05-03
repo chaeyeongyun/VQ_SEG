@@ -322,7 +322,7 @@ class NEDPrototypeLoss(nn.Module):
         # sum_all = torch.sum(torch.exp(distance/self.temperature), dim=-1) # (BHW, )
         # loss = torch.mean(positive / sum_all)
         loss = torch.softmax(distance/self.temperature, dim=-1)
-        loss = -torch.mean(loss[x_ind, flatten_gt[:,0]])
+        loss = 1-torch.mean(loss[x_ind, flatten_gt[:,0]])
         return loss
     
     def _kmeans_init(self, flatten_x):    
