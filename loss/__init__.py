@@ -1,6 +1,7 @@
 from torch import nn
 from .dice_loss import DiceLoss
 from .focal_loss import FocalLoss
+from .contrastive_loss import * 
 
 loss_dict = {'cross_entropy':nn.CrossEntropyLoss,
                  'dice_loss':DiceLoss,

@@ -20,7 +20,6 @@ from utils.visualize import make_example_img, save_img
 from utils.seg_tools import img_to_label
 from utils.lr_schedulers import WarmUpPolyLR, CosineAnnealingLR
 from utils.seed import seed_everything
-from utils.train_tools import make_optim_paramgroup
 
 from data.dataset import BaseDataset
 
@@ -70,39 +69,31 @@ def train(cfg):
     sup_loader = DataLoader(sup_dataset, batch_size=batch_size, shuffle=True)
     unsup_loader = DataLoader(unsup_dataset, batch_size=batch_size, shuffle=True)
     
-    decoder_lr_times = cfg.train.get("decoder_lr_times", False)
-    if decoder_lr_times:
-        param_list_1 = make_optim_paramgroup(model_1, lr=cfg.train.learning_rate, decoder_lr_times=decoder_lr_times)
-        param_list_2 = make_optim_paramgroup(model_2, lr=cfg.train.learning_rate, decoder_lr_times=decoder_lr_times)
-        optimizer_1 = torch.optim.Adam(param_list_1, betas=(0.9, 0.999))
-        optimizer_2 = torch.optim.Adam(param_list_2, betas=(0.9, 0.999))
-        
-    else:
-        optimizer_1 = torch.optim.Adam(model_1.parameters(), lr=cfg.train.learning_rate, betas=(0.9, 0.999))
-        optimizer_2 = torch.optim.Adam(model_2.parameters(), lr=cfg.train.learning_rate, betas=(0.9, 0.999))
     
-    # if cfg.train.lr_scheduler.name == 'warmuppoly':
-    #     lr_sched_cfg = cfg.train.lr_scheduler
-    #     lr_scheduler = WarmUpPolyLR(cfg.train.learning_rate, lr_power=cfg.lr_sched_cfg.lr_power, 
-    #                                 total_iters=len(unsup_loader)*num_epochs,
-    #                                 warmup_steps=len(unsup_loader)*cfg.lr_sched_cfg.warmup_epoch)
-    # elif cfg.train.lr_scheduler.name == 'cosineannealing':
-    #     lr_sched_cfg = cfg.train.lr_scheduler
-    #     lr_scheduler = CosineAnnealingLR(start_lr = cfg.train.learning_rate, min_lr=lr_sched_cfg.min_lr, total_iters=len(unsup_loader)*num_epochs, warmup_steps=lr_sched_cfg.warmup_steps)
-    lr_scheduler_1 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_1, len(unsup_loader)*num_epochs)
-    lr_scheduler_2 = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_2, len(unsup_loader)*num_epochs)
+    if cfg.train.lr_scheduler.name == 'warmuppoly':
+        lr_sched_cfg = cfg.train.lr_scheduler
+        lr_scheduler = WarmUpPolyLR(cfg.train.learning_rate, lr_power=cfg.lr_sched_cfg.lr_power, 
+                                    total_iters=len(unsup_loader)*num_epochs,
+                                    warmup_steps=len(unsup_loader)*cfg.lr_sched_cfg.warmup_epoch)
+    elif cfg.train.lr_scheduler.name == 'cosineannealing':
+        lr_sched_cfg = cfg.train.lr_scheduler
+        lr_scheduler = CosineAnnealingLR(start_lr = cfg.train.learning_rate, min_lr=lr_sched_cfg.min_lr, total_iters=len(unsup_loader)*num_epochs, warmup_steps=lr_sched_cfg.warmup_steps)
     
+    optimizer_1 = torch.optim.Adam(model_1.parameters(), lr=cfg.train.learning_rate, betas=(0.9, 0.999))
+    optimizer_2 = torch.optim.Adam(model_2.parameters(), lr=cfg.train.learning_rate, betas=(0.9, 0.999))
         
     
     # progress bar
     cps_loss_weight = cfg.train.cps_loss_weight
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
+    total_sup_con_loss_weight = cfg.train.total_sup_con_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
     for epoch in range(num_epochs):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
         crop_iou, weed_iou, back_iou = 0, 0, 0
         sum_cps_loss, sum_sup_loss_1, sum_sup_loss_2 = 0, 0, 0
         sum_commitment_loss = 0
+        sum_sup_con_loss = 0
         sum_loss = 0
         sum_miou = 0
         ep_start = time.time()
@@ -118,15 +109,18 @@ def train(cfg):
             l_input = l_input.to(device)
             l_target = l_target.to(device)
             ul_input = ul_input.to(device)
-     
+
+            pseudo_1 = model_1.pseudo_label(ul_input)
+            pseudo_2 = model_2.pseudo_label(ul_input)
             with torch.cuda.amp.autocast(enabled=half):
-                pred_sup_1, commitment_loss_l1, code_usage_l1 = model_1(l_input)
-                pred_sup_2, commitment_loss_l2, code_usage_l2 = model_2(l_input)
+                pred_sup_1, commitment_loss_l1, code_usage_l1, sup_con_loss_l1 = model_1(l_input, l_target, split='label')
+                pred_sup_2, commitment_loss_l2, code_usage_l2, sup_con_loss_l2 = model_2(l_input, l_target, split='label')
                 ## predict in unsupervised manner ##
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1 = model_1(ul_input)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2 = model_2(ul_input)
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1, _ = model_1(ul_input, pseudo_2)
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2, _ = model_2(ul_input, pseudo_1)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
+            
             ## cps loss ##
             pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
             pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
@@ -142,30 +136,28 @@ def train(cfg):
                 sup_loss_1 = criterion(pred_sup_1, l_target)
                 sup_loss_2 = criterion(pred_sup_2, l_target)
                 sup_loss = sup_loss_1 + sup_loss_2
-                
+                ## commitment_loss
                 commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
+                commitment_loss *= total_commitment_loss_weight
+                ## sup_con_loss
+                sup_con_loss = sup_con_loss_l1 + sup_con_loss_l2 
+                sup_con_loss *= total_sup_con_loss_weight
                 
                 ## learning rate update
-                # current_idx = epoch * len(unsup_loader) + batch_idx
-                # learning_rate = lr_scheduler.get_lr(current_idx)
+                current_idx = epoch * len(unsup_loader) + batch_idx
+                learning_rate = lr_scheduler.get_lr(current_idx)
                 # update the learning rate
-                # optimizer_1.param_groups[0]['lr'] = learning_rate
-                # optimizer_2.param_groups[0]['lr'] = learning_rate
+                optimizer_1.param_groups[0]['lr'] = learning_rate
+                optimizer_2.param_groups[0]['lr'] = learning_rate
                 
-                loss = sup_loss + cps_loss_weight*cps_loss + total_commitment_loss_weight*commitment_loss
+                loss = sup_loss + cps_loss_weight*cps_loss + commitment_loss + sup_con_loss
                 sum_code_usage += (code_usage_l1 + code_usage_l2 + code_usage_ul1 + code_usage_ul2) / 4 
                 
             scaler.scale(loss).backward()
             scaler.step(optimizer_1)
             scaler.step(optimizer_2)
             scaler.update()
-            if decoder_lr_times:
-                learning_rate = list(map(lambda x: round(x, 5), [optimizer_1.param_groups[0]['lr'], optimizer_1.param_groups[1]['lr']]))
-            else:
-                learning_rate = round(optimizer_1.param_groups[0]['lr'], 7)
-                
-            lr_scheduler_1.step()
-            lr_scheduler_2.step()
+            
             
             step_miou, iou_list = measurement.miou(measurement._make_confusion_matrix(pred_sup_1.detach().cpu().numpy(), l_target.detach().cpu().numpy()))
             sum_miou += step_miou
@@ -174,11 +166,12 @@ def train(cfg):
             sum_sup_loss_1 += sup_loss_1.item()
             sum_sup_loss_2 += sup_loss_2.item()
             sum_commitment_loss += commitment_loss.item()
+            sum_sup_con_loss += sup_con_loss.item()
             back_iou += iou_list[0]
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
-            print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate}" \
-                            + f"miou={step_miou:.4f}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
+            print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
+                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, sup_con_loss={sup_con_loss.item():.4f}, cps_loss={cps_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
@@ -191,11 +184,12 @@ def train(cfg):
         sup_loss_1 = sum_sup_loss_1 / len(unsup_loader)
         sup_loss_2 = sum_sup_loss_2 / len(unsup_loader)
         commitment_loss = sum_commitment_loss / len(unsup_loader)
+        sup_con_loss = sum_sup_con_loss / len(unsup_loader)
         loss = sum_loss / len(unsup_loader)
         miou = sum_miou / len(unsup_loader)
         
         print_txt = f"[Epoch{epoch}]" \
-                            + f"miou={miou:.4f}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
+                            + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, sup_con_loss={sup_con_loss:.4f}, cps_loss={cps_loss:.4f}, commitment_loss={commitment_loss:.4f}"
         print(print_txt)
         if logger != None:
             log_txt.write(print_txt)
@@ -238,17 +232,15 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqatunet.json')
+    parser.add_argument('--config_path', default='./config/sup_con_loss.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    # cfg.resize=256
-    cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.resize=224
+    # cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     # cfg.train.half=False
-    cfg.train.decoder_lr_times = False
-    cfg.resize = 512
-    train(cfg)
-    # cfg.train.learning_rate = 1e-4
+    # cfg.resize = 256
     # train(cfg)
+    train(cfg)
     

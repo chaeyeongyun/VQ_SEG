@@ -271,7 +271,7 @@ class LearnableEuclideanPrototypeLoss(nn.Module):
         self.initted = True
         
 class NEDPrototypeLoss(nn.Module):
-    def __init__(self, num_classes, embedding_dim, temperature=0.04, init='kmeans', use_feature=False) :
+    def __init__(self, num_classes, embedding_dim, temperature=0.04, init='class_means', use_feature=False) :
         super().__init__()
         self.use_feature = use_feature
         self.num_classes = num_classes
@@ -290,8 +290,10 @@ class NEDPrototypeLoss(nn.Module):
             self.initted = True
         elif init == 'kmeans':
             pass
+        elif init == 'class_means':
+            pass
         else:
-            raise ValueError('init has to be in [''uniform'', ''normal'', ''kmeans'']')
+            raise ValueError('init has to be in [''uniform'', ''normal'', ''kmeans'', ''class_means'']')
           
                 
     def forward(self, x, gt):
@@ -303,8 +305,11 @@ class NEDPrototypeLoss(nn.Module):
         flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BHW, C)
         flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
         
-        if not self.initted and self.init == 'kmeans':
-            self._kmeans_init(flatten_x)
+        if not self.initted:
+            if self.init == 'kmeans':
+                self._kmeans_init(flatten_x)
+            elif self.init == 'class_means':
+                self._class_means_init(flatten_x, flatten_gt)
         
         if self.use_feature:
             indexes = [torch.nonzero(flatten_gt==i, as_tuple=True)[0] for i in range(self.num_classes)]
@@ -322,7 +327,7 @@ class NEDPrototypeLoss(nn.Module):
         # sum_all = torch.sum(torch.exp(distance/self.temperature), dim=-1) # (BHW, )
         # loss = torch.mean(positive / sum_all)
         loss = torch.softmax(distance/self.temperature, dim=-1)
-        loss = 1-torch.mean(loss[x_ind, flatten_gt[:,0]])
+        loss = -torch.mean(loss[x_ind, flatten_gt[:,0]])
         return loss
     
     def _kmeans_init(self, flatten_x):    
@@ -337,3 +342,16 @@ class NEDPrototypeLoss(nn.Module):
         
         self.embedding.weight.data.copy_(embed[0])
         self.initted = True
+    def _class_means_init(self, flatten_x, flatten_gt):    
+        if self.initted:
+            return
+        print('class_means_init')
+        indexes = [torch.nonzero(flatten_gt==i, as_tuple=True)[0] for i in range(self.num_classes)]
+        temp = []
+        for i in range(self.num_classes):
+            temp.append(torch.mean(flatten_x[indexes[i]], dim=0, keepdim=True)) # (1, C)
+        temp = torch.cat(temp, dim=0) # (num_classes, C)
+    
+        self.embedding.weight.data.copy_(temp)
+        self.initted = True
+        

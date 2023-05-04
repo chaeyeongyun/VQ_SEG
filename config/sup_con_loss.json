@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQ_NEDPT_UNet",
+    "project_name":"sup_con_loss",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{
@@ -9,7 +9,7 @@
     },
     "resize":512,
     "model":{
-        "name":"vqnedptunet",
+        "name":"supconvqunet",
         "params":{
             "encoder_name":"resnet50",
             "num_classes":3,
@@ -19,7 +19,7 @@
                 "distance":"euclidean",
                 "kmeans_init": true
                 },
-            "use_feature":true,
+            "use_feature":false,
             "encoder_weights":"imagenet_swsl"
             }
         },
@@ -37,12 +37,12 @@
         },
         "half":true,
         "init_weights":true,
-        "bn_eps":1e-5,
+        "bn_eps": 1e-4,
         "bn_momentum":0.1,
         "criterion":"dice_loss",
         "cps_loss_weight":1,
         "total_commitment_loss_weight":1,
-        "total_prototype_loss_weight":0.25,
+        "total_sup_con_loss_weight":0.5,
         "resume":null,
         "save_img":true,
         "save_txt":true,

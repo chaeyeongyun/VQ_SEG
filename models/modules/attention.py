@@ -1,6 +1,8 @@
+from functools import reduce
+from typing import List
 import torch
 from torch.nn import Module, Conv2d, Softmax, Parameter, ModuleList, Identity
-
+from torch import nn
 def make_attentions(attention:Module, encoder_channels, flag):
     attentions = [attention(ch) if f else Identity() for ch, f in zip(encoder_channels, flag)]
     attentions = ModuleList(attentions)
@@ -13,8 +15,8 @@ class DualAttention(Module):
         self.cam = CAM_Module(in_dim)
     def forward(self, x):
         pam_out = self.pam(x)
-        cam_out = self.cam(x)
-        return pam_out + cam_out
+        cam_out = self.cam(pam_out)
+        return cam_out
         
 class PAM_Module(Module):
     """ Position attention module"""
@@ -81,4 +83,35 @@ class CAM_Module(Module):
 
         out = self.gamma*out + x
         return out
-
+##### ------ DRSAM
+class DRSAM(nn.Module):
+    def __init__(self, in_channels, kernel_size_list:List=[3, 7]) :
+        super().__init__()
+        self.dwconv_blocks = nn.ModuleList([DWConvBlock(in_channels, in_channels, kernel_size=i) for i in kernel_size_list])
+        self.fc_list = nn.ModuleList([FC(in_channels) for _ in range(len(kernel_size_list))])
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.last_conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, bias=False)
+    def forward(self, x):
+        conv_outs = [dwconv(x) for dwconv in self.dwconv_blocks] 
+        gap_outs = [torch.squeeze(self.gap(conv_out)) for conv_out in conv_outs] # (N, C) x len(kernel_size_list)
+        fc_outs = [fc(gap_out) for gap_out, fc in zip(gap_outs, self.fc_list)] # (N, C) x len(kernel_size_list)
+        weights = torch.stack(fc_outs, dim=1) # (N, len(kernel_size_list), C)
+        weights = torch.softmax(weights, dim=1) # (N, len(kernel_size_list), C)
+        weighted = [weights[:, i, :].unsqueeze(-1).unsqueeze(-1) * conv_out for i, conv_out in enumerate(conv_outs)]
+        output = reduce(lambda x,y:x+y, weighted)
+        output = self.last_conv(output)
+        return output
+    
+class DWConvBlock(nn.Sequential):
+    def __init__(self, in_channels, out_channels, kernel_size, bias=False, padding_mode='reflect'):
+        layers = [nn.Conv2d(in_channels, out_channels, kernel_size, padding=kernel_size//2, bias=bias, groups=in_channels, padding_mode=padding_mode),
+                  nn.BatchNorm2d(out_channels),
+                  nn.ReLU()]
+        super().__init__(*layers)
+class FC(nn.Sequential):
+    def __init__(self, in_channels):
+        layers = [nn.Linear(in_channels, in_channels//2),
+                nn.Linear(in_channels//2, in_channels)]
+        super().__init__(*layers)
+        
+    

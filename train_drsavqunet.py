@@ -178,7 +178,7 @@ def train(cfg):
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate}" \
-                            + f"miou={step_miou:.4f}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
+                            + f"miou={step_miou.item():.4f}, sup_loss_1={sup_loss_1.item():.4f}, sup_loss_2={sup_loss_2.item():.4f}, cps_loss={cps_loss.item():.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
@@ -238,16 +238,15 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqatunet.json')
+    parser.add_argument('--config_path', default='./config/drsavqunet.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    # cfg.resize=256
-    cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    cfg.resize=448
+    # cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     # cfg.train.half=False
-    cfg.train.decoder_lr_times = False
-    cfg.resize = 512
+    
     train(cfg)
     # cfg.train.learning_rate = 1e-4
     # train(cfg)
