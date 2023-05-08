@@ -242,12 +242,13 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    cfg.resize=448
+    cfg.resize=512
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     # cfg.train.half=False
     
     train(cfg)
     # cfg.train.learning_rate = 1e-4
+    # cfg.model.params.encoder_weights = None
     # train(cfg)
     

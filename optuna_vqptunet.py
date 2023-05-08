@@ -1,3 +1,6 @@
+import optuna
+from optuna import Trial, visualization
+import math
 import argparse
 import matplotlib.pyplot as plt
 import os
@@ -26,18 +29,38 @@ from data.dataset import BaseDataset
 from loss import make_loss
 from measurement import Measurement
 
-# 일단 no cutmix version
-def train(cfg):
+import matplotlib.pyplot as plt
+
+def test(test_loader, model, measurement:Measurement, cfg):
+    sum_miou = 0
+    for data in tqdm(test_loader):
+        input_img, mask_img, filename = data['img'], data['target'], data['filename']
+        input_img = input_img.to(model.device)
+        mask_cpu = img_to_label(mask_img, cfg.pixel_to_label).cpu().numpy()
+        model.eval()
+        with torch.no_grad():
+            pred = model(input_img)[0]
+        miou, _ = measurement.miou(measurement._make_confusion_matrix(pred.detach().cpu().numpy(), mask_cpu))
+        sum_miou += miou
+    miou = sum_miou / len(test_loader)
+    print(f'test miou : {miou}')
+    return miou
+        
+def train(trial, cfg):
     seed_everything()
-    if cfg.wandb_logging:
-        logger_name = cfg.project_name+str(len(os.listdir(cfg.train.save_dir)))
-        save_dir = os.path.join(cfg.train.save_dir, logger_name)
-        os.makedirs(save_dir)
-        ckpoints_dir = os.path.join(save_dir, 'ckpoints')
-        os.mkdir(ckpoints_dir)
-        if cfg.train.save_img:
-            img_dir = os.path.join(save_dir, 'imgs')
-            os.mkdir(img_dir)
+    cfg.train.learning_rate = trial.suggest_float('learning_rate', 1e-5, 1e-2)
+    cfg.train.total_commitment_loss_weight = trial.suggest_float('total_commitment_loss_weight', 0.5, 2)
+    cfg.train.total_prototype_loss_weight = trial.suggest_float('total_prototype_loss_weight', 0.2, 5)
+    cfg.train.cps_loss_weight = trial.suggest_float('cps_loss_weight', 1, 2)
+    logger_name = cfg.project_name+str(len(os.listdir(cfg.train.save_dir)))
+    # if cfg.wandb_logging:
+    save_dir = os.path.join(cfg.train.save_dir, logger_name)
+    os.makedirs(save_dir)
+    ckpoints_dir = os.path.join(save_dir, 'ckpoints')
+    os.mkdir(ckpoints_dir)
+    if cfg.train.save_img:
+        img_dir = os.path.join(save_dir, 'imgs')
+        os.mkdir(img_dir)
         log_txt = open(os.path.join(save_dir, 'log_txt'), 'w')
     logger = Logger(cfg, logger_name) if cfg.wandb_logging else None
     
@@ -69,6 +92,10 @@ def train(cfg):
     sup_loader = DataLoader(sup_dataset, batch_size=batch_size, shuffle=True)
     unsup_loader = DataLoader(unsup_dataset, batch_size=batch_size, shuffle=True)
     
+    ##test##
+    test_dataset = BaseDataset(os.path.join(cfg.test.data_dir, 'test'), split='labelled', batch_size=1, resize=cfg.resize)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+    ###
     
     if cfg.train.lr_scheduler.name == 'warmuppoly':
         lr_sched_cfg = cfg.train.lr_scheduler
@@ -98,6 +125,8 @@ def train(cfg):
         sum_miou = 0
         ep_start = time.time()
         pbar =  tqdm(range(len(unsup_loader)))
+        model_1.train()
+        model_2.train()
         for batch_idx in pbar:
             sup_dict, unsup_dict = next(trainloader)
             l_input, l_target = sup_dict['img'], sup_dict['target']
@@ -158,7 +187,6 @@ def train(cfg):
             scaler.step(optimizer_2)
             scaler.update()
             
-            
             step_miou, iou_list = measurement.miou(measurement._make_confusion_matrix(pred_sup_1.detach().cpu().numpy(), l_target.detach().cpu().numpy()))
             sum_miou += step_miou
             sum_loss += loss.item()
@@ -172,6 +200,7 @@ def train(cfg):
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
                             + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss.item():.4f}, cps_loss={cps_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}"
+            
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
@@ -191,57 +220,94 @@ def train(cfg):
         print_txt = f"[Epoch{epoch}]" \
                             + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss:.4f}, cps_loss={cps_loss:.4f}, commitment_loss={commitment_loss:.4f}"
         print(print_txt)
-        if logger != None:
+        test_miou = test(test_loader, model_1, measurement, cfg)
+        if cfg.train.save_img:
             log_txt.write(print_txt)
             params = [l_input, l_target, pred_sup_1, ul_input, pred_ul_1]
             params = [detach_numpy(i) for i in params]
             example = make_example_img(*params)
+            example = make_example_img(*params)
+            save_img(img_dir, f'output_{epoch}ep.png', example)
+        
+        if logger != None: 
             logger.image_update(example, f'{epoch}ep')
-            if cfg.train.save_img:
-                save_img(img_dir, f'output_{epoch}ep.png', example)
-            if epoch % 10 == 0:
-                save_ckpoints(model_1.state_dict(),
-                            model_2.state_dict(),
-                            epoch,
-                            batch_idx,
-                            optimizer_1.state_dict(),
-                            optimizer_2.state_dict(),
-                            os.path.join(ckpoints_dir, f"{epoch}ep.pth"))
-            save_ckpoints(model_1.state_dict(),
-                        model_2.state_dict(),
-                        epoch,
-                        batch_idx,
-                        optimizer_1.state_dict(),
-                        optimizer_2.state_dict(),
-                        os.path.join(ckpoints_dir, f"last.pth"))
-            # wandb logging
             for key in logger.config_dict.keys():
                 logger.config_dict[key] = eval(key)
             for key in logger.log_dict.keys():
                 if key=="code_usage":
                     logger.temp_update(list_to_separate_log(l=eval(key), name=key))
                 else:logger.log_dict[key] = eval(key)
-            
             logger.logging(epoch=epoch)
             logger.config_update()
+            
+        if epoch % 10 == 0:
+            save_ckpoints(model_1.state_dict(),
+                        model_2.state_dict(),
+                        epoch,
+                        batch_idx,
+                        optimizer_1.state_dict(),
+                        optimizer_2.state_dict(),
+                        os.path.join(ckpoints_dir, f"{epoch}ep.pth"))
+        save_ckpoints(model_1.state_dict(),
+                    model_2.state_dict(),
+                    epoch,
+                    batch_idx,
+                    optimizer_1.state_dict(),
+                    optimizer_2.state_dict(),
+                    os.path.join(ckpoints_dir, f"last.pth"))
+            # wandb logging
+            
+            
+        # if epoch>=3 and math.isnan(prototype_loss):
+        #     log_txt.close()
+        #     if logger is not None:logger.finish()
+        #     return test_miou
     if logger != None: 
         log_txt.close()
         logger.finish()
     if cfg.train.save_as_tar:
         save_tar(save_dir)
+    return test_miou
+
+def main(cfg):
+    study = optuna.create_study(sampler=optuna.samplers.TPESampler(), direction='maximize')
+    logger_name = cfg.project_name+str(len(os.listdir(cfg.train.save_dir)))
+    
+    try:
+        study.optimize(lambda trial: train(trial, cfg))
+    except KeyboardInterrupt:
+        print(f'Best trial : test_miou = {study.best_trial.value()}\nparams=study.best_trial.value()')
+        df = study.trials_dataframe()
+        importance_graph = visualization.plot_param_importance(study)
+        optim_history = visualization.plot_optimization_history(study)
+        save_dir = os.path.join(cfg.train.save_dir, logger_name)
+        plt.imsave(os.path.join(save_dir, 'importance_graph.png'), importance_graph)
+        plt.imsave(os.path.join(save_dir, 'importance_graph.png'), optim_history)
+        df.to_csv(os.path.join(save_dir, 'params.csv'), sep=',', na_rep='NaN')
+    else:
+        print("No Exception")
+        df = study.trials_dataframe()
+        importance_graph = visualization.plot_param_importance(study)
+        optim_history = visualization.plot_optimization_history(study)
+        save_dir = os.path.join(cfg.train.save_dir, logger_name)
+        plt.imsave(os.path.join(save_dir, 'importance_graph.png'), importance_graph)
+        plt.imsave(os.path.join(save_dir, 'importance_graph.png'), optim_history)
+        df.to_csv(os.path.join(save_dir, 'params.csv'), sep=',', na_rep='NaN')
+    
+        
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_path', default='./config/vq_pt_unet.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
+    cfg.train.save_dir = '../drive/MyDrive/optuna_train/CWFID'
+    cfg.project_name = 'Optuna_VQPTUnet'
     # debug
-    cfg.resize=512
-    cfg.project_name = 'debug'
+    # cfg.resize=64
+    # cfg.project_name = 'debug'
     cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
-    train(cfg)
-    cfg.model.params.pop("encoder_weights")
-    train(cfg)
+    main(cfg)

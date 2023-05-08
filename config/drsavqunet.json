@@ -15,7 +15,7 @@
             "num_classes":3,
             "depth": 5,
             "vq_cfg":{
-                "num_embeddings":[0, 0, 512, 512, 512],
+                "num_embeddings":[0, 0, 0, 0, 512],
                 "distance":"euclidean",
                 "kmeans_init": true
                 },

@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from utils.seg_tools import label_to_onehot
 
+import math
+
 def l1norm(t:torch.Tensor, dim):
     return F.normalize(t, p=1, dim=dim)
 
@@ -67,7 +69,7 @@ def kmeans(flatten_x, num_clusters, num_iters, use_cosine_sim=False):
     return means, bins
 
 class PrototypeLoss(nn.Module):
-    def __init__(self, num_classes, embedding_dim, scale, margin, init='kmeans', use_feature=False) :
+    def __init__(self, num_classes, embedding_dim, scale, margin, init='kmeans', use_feature=False, easy_margin=True) :
         super().__init__()
         self.use_feature = use_feature
         self.num_classes = num_classes
@@ -88,6 +90,11 @@ class PrototypeLoss(nn.Module):
             pass
         else:
             raise ValueError('init has to be in [''uniform'', ''normal'', ''kmeans'']')
+        self.easy_margin = easy_margin
+        self.cos_m = math.cos(margin)
+        self.sin_m = math.sin(margin)
+        self.th = math.cos(math.pi - margin)
+        self.mm = math.sin(math.pi - margin) * margin
                 
     def forward(self, x, gt):
         gt = gt.unsqueeze(1) if gt.dim()==3 else gt
@@ -114,11 +121,19 @@ class PrototypeLoss(nn.Module):
         flatten_x = l1norm(flatten_x, dim=-1)
         # cosine
         # cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
-        cosine = torch.matmul(flatten_x, self.embedding.weight.transpose(0,1))
-       
+        # cosine = torch.mm(flatten_x, self.embedding.weight.transpose(0,1)) # (BHW, C) x (C, 3) = (BHW, 3)
+        cosine = F.linear(flatten_x, self.embedding.weight)
+        
         x_ind = torch.arange(x_b*x_h*x_w, dtype=torch.long)
         # margin
-        cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] - self.margin
+        sine = torch.sqrt((1.0 - torch.pow(cosine, 2)).clamp(0, 1))
+        phi = cosine * self.cos_m - sine * self.sin_m
+        if self.easy_margin:
+            phi = torch.where(cosine > 0, phi, cosine)
+        else:
+            phi = torch.where(cosine > self.th, phi, cosine - self.mm)
+        # cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] - self.margin
+        cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] * phi[x_ind, flatten_gt[:,0]].to(torch.float16)
         # cosine = cosine + self.margin * flatten_gt
         # scale
         cosine = self.scale * cosine
@@ -126,7 +141,7 @@ class PrototypeLoss(nn.Module):
         positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
         # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
         sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
-        loss = -torch.mean(torch.log(positive / sum_all)) 
+        loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)) 
         return loss
     
     def _kmeans_init(self, flatten_x):    
@@ -137,6 +152,7 @@ class PrototypeLoss(nn.Module):
             flatten_x,
             self.num_classes,
             num_iters=10,
+            use_cosine_sim=False # l1norm 해줌
         )
         
         self.embedding.weight.data.copy_(embed[0])

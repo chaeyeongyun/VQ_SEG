@@ -177,8 +177,11 @@ class VQPTUnet(nn.Module):
                                                   activation=activation,
                                                   kernel_size=3)
         self.prototype_loss = PrototypeLoss(num_classes, decoder_channels[-1], margin=margin, scale=scale, use_feature=use_feature)
+        self.device = None
         
     def forward(self, x, gt=None, code_usage_loss=False):
+        if self.device is None:
+            self.device = x.device
         features = self.encoder(x)[1:]
         if len(features) != len(self.codebook) : raise NotImplementedError
         
@@ -225,6 +228,8 @@ class VQPTUnet(nn.Module):
         codebook_weights = torch.load(codebook_weights_path)
         self.encoder.load_state_dict(encoder_weights)
         self.codebook.load_state_dict(codebook_weights)
+   
+    
 
 class VQEuPTUnet(nn.Module):
     def __init__(
