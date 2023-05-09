@@ -46,16 +46,45 @@
 #     obj = Test()
     
 #     obj.initialize()
-from easydict import EasyDict
-from models.networks.unet import VQPTUnet
-import torch
-model = VQPTUnet('resnet50', 3, 
-                vq_cfg=EasyDict({
-                "num_embeddings":[0, 0, 512, 512, 512],
-                "distance":"euclidean",
-                "kmeans_init": True
-                }),
-                )
-x = torch.randn(2, 3, 256, 256)
-gt = torch.randint(0, 2, (2, 1, 256, 256), requires_grad=False).float()
-model(x, gt)
+# from easydict import EasyDict
+# from models.networks.unet import VQPTUnet
+# import torch
+# model = VQPTUnet('resnet50', 3, 
+#                 vq_cfg=EasyDict({
+#                 "num_embeddings":[0, 0, 512, 512, 512],
+#                 "distance":"euclidean",
+#                 "kmeans_init": True
+#                 }),
+#                 )
+# x = torch.randn(2, 3, 256, 256)
+# gt = torch.randint(0, 2, (2, 1, 256, 256), requires_grad=False).float()
+# model(x, gt)
+
+graph = {
+    1:[2, 3, 4],
+    2:[5],
+    3:[5],
+    4:[],
+    5:[6,7],
+    6:[],
+    7:[3]
+}
+def recursive_dfs(v, graph, discovered=[]):
+    discovered.append(v)
+    for w in graph[v]:
+        if not w in discovered:
+            discovered = recursive_dfs(w, graph, discovered)
+    return discovered
+print(recursive_dfs(1, graph))
+
+def iterative_dfs(v):
+    discovered = []
+    stack = [v]
+    while stack:
+        v = stack.pop()
+        if v not in discovered:
+            discovered.append(v)
+            for w in graph[v]:
+                stack.append(w)
+    return discovered
+print(iterative_dfs(1))

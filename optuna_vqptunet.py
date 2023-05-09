@@ -221,6 +221,11 @@ def train(trial, cfg):
                             + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss:.4f}, cps_loss={cps_loss:.4f}, commitment_loss={commitment_loss:.4f}"
         print(print_txt)
         test_miou = test(test_loader, model_1, measurement, cfg)
+        if epoch > 50 and test_miou < 0.5:
+            log_txt.close()
+            if logger is not None:
+                logger.finish() 
+            return test_miou
         if cfg.train.save_img:
             log_txt.write(print_txt)
             params = [l_input, l_target, pred_sup_1, ul_input, pred_ul_1]
@@ -280,7 +285,7 @@ def main(cfg):
         df = study.trials_dataframe()
         importance_graph = visualization.plot_param_importance(study)
         optim_history = visualization.plot_optimization_history(study)
-        save_dir = os.path.join(cfg.train.save_dir, logger_name)
+        save_dir = cfg.train.save_dir
         plt.imsave(os.path.join(save_dir, 'importance_graph.png'), importance_graph)
         plt.imsave(os.path.join(save_dir, 'importance_graph.png'), optim_history)
         df.to_csv(os.path.join(save_dir, 'params.csv'), sep=',', na_rep='NaN')
@@ -289,7 +294,7 @@ def main(cfg):
         df = study.trials_dataframe()
         importance_graph = visualization.plot_param_importance(study)
         optim_history = visualization.plot_optimization_history(study)
-        save_dir = os.path.join(cfg.train.save_dir, logger_name)
+        save_dir = cfg.train.save_dir
         plt.imsave(os.path.join(save_dir, 'importance_graph.png'), importance_graph)
         plt.imsave(os.path.join(save_dir, 'importance_graph.png'), optim_history)
         df.to_csv(os.path.join(save_dir, 'params.csv'), sep=',', na_rep='NaN')
