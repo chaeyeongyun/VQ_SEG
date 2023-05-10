@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -83,7 +85,8 @@ class AngularSegmentationHead(nn.Module):
                  init='kmeans', 
                  kernel_size=3, 
                  upsampling=2, 
-                 activation=nn.Softmax2d):
+                 activation=nn.Softmax2d,
+                 easy_margin=True):
         super().__init__()
         self.num_classes = num_classes
         self.scale = scale
@@ -107,6 +110,11 @@ class AngularSegmentationHead(nn.Module):
             pass
         else:
             raise ValueError('init has to be in [''uniform'', ''normal'', ''kmeans'']')
+        self.easy_margin = easy_margin
+        self.cos_m = math.cos(margin)
+        self.sin_m = math.sin(margin)
+        self.th = math.cos(math.pi - margin)
+        self.mm = math.sin(math.pi - margin) * margin
         
     def forward(self, x, gt):
         x = self.conv(x)
@@ -130,15 +138,22 @@ class AngularSegmentationHead(nn.Module):
             
             x_ind = torch.arange(x_b*x_h*x_w)
             # margin
-            # cosine = cosine + self.margin * flatten_gt # too slow....
-            cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] - self.margin
+            sine = torch.sqrt((1.0 - torch.pow(cosine, 2)).clamp(0, 1))
+            phi = cosine * self.cos_m - sine * self.sin_m
+            if self.easy_margin:
+                phi = torch.where(cosine > 0, phi, cosine)
+            else:
+                phi = torch.where(cosine > self.th, phi, cosine - self.mm)
+            # cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] - self.margin
+            cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] * phi[x_ind, flatten_gt[:,0]].to(torch.float16)
+            # cosine = cosine + self.margin * flatten_gt
             # scale
             cosine = self.scale * cosine
             
             positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
             # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
             sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
-            loss = -torch.mean(torch.log(positive / sum_all)) 
+            loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)) 
         pred = rearrange(cosine, '(b h w) p -> b h w p', b=x_b, h=x_h, w=x_w, p=self.num_classes)
         pred = rearrange(pred, 'b h w p -> b p h w')
         pred = self.activation(pred)

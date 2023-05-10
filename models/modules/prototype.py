@@ -69,7 +69,7 @@ def kmeans(flatten_x, num_clusters, num_iters, use_cosine_sim=False):
     return means, bins
 
 class PrototypeLoss(nn.Module):
-    def __init__(self, num_classes, embedding_dim, scale, margin, init='kmeans', use_feature=False, easy_margin=True) :
+    def __init__(self, num_classes, embedding_dim, scale, margin, init='normal', use_feature=False, easy_margin=True) :
         super().__init__()
         self.use_feature = use_feature
         self.num_classes = num_classes

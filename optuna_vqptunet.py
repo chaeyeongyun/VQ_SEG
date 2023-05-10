@@ -48,9 +48,9 @@ def test(test_loader, model, measurement:Measurement, cfg):
         
 def train(trial, cfg):
     seed_everything()
-    cfg.train.learning_rate = trial.suggest_float('learning_rate', 1e-5, 1e-2)
-    cfg.train.total_commitment_loss_weight = trial.suggest_float('total_commitment_loss_weight', 0.5, 2)
-    cfg.train.total_prototype_loss_weight = trial.suggest_float('total_prototype_loss_weight', 0.2, 5)
+    cfg.train.learning_rate = trial.suggest_float('learning_rate', 8e-5, 1e-3)
+    cfg.train.total_commitment_loss_weight = trial.suggest_float('total_commitment_loss_weight', 0.5, 1)
+    cfg.train.total_prototype_loss_weight = trial.suggest_float('total_prototype_loss_weight', 0.005, 0.01)
     cfg.train.cps_loss_weight = trial.suggest_float('cps_loss_weight', 1, 2)
     logger_name = cfg.project_name+str(len(os.listdir(cfg.train.save_dir)))
     # if cfg.wandb_logging:
@@ -62,6 +62,7 @@ def train(trial, cfg):
         img_dir = os.path.join(save_dir, 'imgs')
         os.mkdir(img_dir)
         log_txt = open(os.path.join(save_dir, 'log_txt'), 'w')
+        log_txt.write(str(cfg))
     logger = Logger(cfg, logger_name) if cfg.wandb_logging else None
     
     half=cfg.train.half
@@ -276,14 +277,11 @@ def train(trial, cfg):
 
 def main(cfg):
     study = optuna.create_study(sampler=optuna.samplers.TPESampler(), direction='maximize')
-    logger_name = cfg.project_name+str(len(os.listdir(cfg.train.save_dir)))
-    
     try:
         study.optimize(lambda trial: train(trial, cfg))
     except KeyboardInterrupt:
-        print(f'Best trial : test_miou = {study.best_trial.value()}\nparams=study.best_trial.value()')
         df = study.trials_dataframe()
-        importance_graph = visualization.plot_param_importance(study)
+        importance_graph = visualization.plot_param_importances(study)
         optim_history = visualization.plot_optimization_history(study)
         save_dir = cfg.train.save_dir
         plt.imsave(os.path.join(save_dir, 'importance_graph.png'), importance_graph)
@@ -292,7 +290,7 @@ def main(cfg):
     else:
         print("No Exception")
         df = study.trials_dataframe()
-        importance_graph = visualization.plot_param_importance(study)
+        importance_graph = visualization.plot_param_importances(study)
         optim_history = visualization.plot_optimization_history(study)
         save_dir = cfg.train.save_dir
         plt.imsave(os.path.join(save_dir, 'importance_graph.png'), importance_graph)

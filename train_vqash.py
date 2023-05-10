@@ -233,13 +233,14 @@ def train(cfg):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_path', default='./config/vqash.json')
+    # parser.add_argument('--config_path', default='./config/vqash_deep.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
-    # cfg.train.half=False
+    # # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
     
@@ -260,7 +261,7 @@ if __name__ == "__main__":
 
     # cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
     # train(cfg)
-    cfg.model.params.encoder_weights = None
-    train(cfg)
+    # cfg.model.params.encoder_weights = None
+    # train(cfg)
     cfg.model.params.encoder_weights = "imagenet_swsl"
     train(cfg)

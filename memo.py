@@ -58,33 +58,63 @@
 #                 )
 # x = torch.randn(2, 3, 256, 256)
 # gt = torch.randint(0, 2, (2, 1, 256, 256), requires_grad=False).float()
-# model(x, gt)
+# # model(x, gt)
+# from torch import nn
+# import torch
+# from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+# window_size = [3, 3]
+# num_heads = 10
+#  # define a parameter table of relative position bias
+# relative_position_bias_table = nn.Parameter(
+# torch.zeros((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads))  # 2*Wh-1 * 2*Ww-1, nH
 
-graph = {
-    1:[2, 3, 4],
-    2:[5],
-    3:[5],
-    4:[],
-    5:[6,7],
-    6:[],
-    7:[3]
-}
-def recursive_dfs(v, graph, discovered=[]):
-    discovered.append(v)
-    for w in graph[v]:
-        if not w in discovered:
-            discovered = recursive_dfs(w, graph, discovered)
-    return discovered
-print(recursive_dfs(1, graph))
+# # get pair-wise relative position index for each token inside the window
+# coords_h = torch.arange(window_size[0])
+# coords_w = torch.arange(window_size[1])
+# coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
+# coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
+# relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
+# relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
+# relative_coords[:, :, 0] += window_size[0] - 1  # shift to start from 0
+# relative_coords[:, :, 1] += window_size[1] - 1
+# relative_coords[:, :, 0] *= 2 * window_size[1] - 1
+# relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
+# trunc_normal_(relative_position_bias_table, std=.02)
+# a=1
+import torch
+def window_partition(x, window_size):
+    """
+    Args:
+        x: (B, H, W, C)
+        window_size (int): window size
 
-def iterative_dfs(v):
-    discovered = []
-    stack = [v]
-    while stack:
-        v = stack.pop()
-        if v not in discovered:
-            discovered.append(v)
-            for w in graph[v]:
-                stack.append(w)
-    return discovered
-print(iterative_dfs(1))
+    Returns:
+        windows: (num_windows*B, window_size, window_size, C)
+    """
+    B, H, W, C = x.shape
+    x = x.view(B, H // window_size, window_size, W // window_size, window_size, C)
+    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
+    return windows
+
+ # calculate attention mask for SW-MSA
+H, W = 8, 8
+window_size = 4
+shift_size = 2
+img_mask = torch.zeros((1, H, W, 1))  # 1 H W 1
+h_slices = (slice(0, -window_size),
+            slice(-window_size, -shift_size),
+            slice(-shift_size, None))
+w_slices = (slice(0, -window_size),
+            slice(-window_size, -shift_size),
+            slice(-shift_size, None))
+cnt = 0
+for h in h_slices:
+    for w in w_slices:
+        img_mask[:, h, w, :] = cnt
+        cnt += 1
+
+mask_windows = window_partition(img_mask, window_size)  # nW, window_size, window_size, 1
+mask_windows = mask_windows.view(-1, window_size * window_size)
+attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
+attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
+z=1

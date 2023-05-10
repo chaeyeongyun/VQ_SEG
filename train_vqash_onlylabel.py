@@ -259,7 +259,7 @@ if __name__ == "__main__":
     # cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
     # train(cfg)
     cfg.project_name = 'vqash_only_label'
-    cfg.model.params.encoder_weights = None
-    train(cfg)
+    # cfg.model.params.encoder_weights = None
+    # train(cfg)
     cfg.model.params.encoder_weights = "imagenet_swsl"
     train(cfg)
