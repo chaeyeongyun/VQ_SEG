@@ -171,3 +171,108 @@ class AngularSegmentationHead(nn.Module):
         
         self.embedding.weight.data.copy_(embed[0])
         self.initted = True
+        
+class AngularSegmentationHeadv2(nn.Module):
+    def __init__(self, 
+                 in_channels, 
+                 out_channels,
+                 num_classes, 
+                 embedding_dim, 
+                 scale, 
+                 margin, 
+                 init='kmeans', 
+                 kernel_size=3, 
+                 upsampling=2, 
+                 activation=nn.Softmax2d,
+                 easy_margin=True):
+        super().__init__()
+        self.num_classes = num_classes
+        self.scale = scale
+        self.margin = margin
+        
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=kernel_size // 2)
+        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
+        self.embedding = nn.Embedding(num_embeddings=num_classes,
+                                      embedding_dim=embedding_dim)
+        self.activation = activation()
+        self.init = init
+        self.initted = False
+        if init == 'uniform':
+            # uniform distribution initialization
+            self.embedding.weight.data.uniform_(-1/num_classes, 1/num_classes)
+            self.initted = True
+        elif init == 'normal':
+            self.embedding.weight.data.normal_()
+            self.initted = True
+        elif init == 'kmeans':
+            pass
+        else:
+            raise ValueError('init has to be in [''uniform'', ''normal'', ''kmeans'']')
+        self.easy_margin = easy_margin
+        self.cos_m = math.cos(margin)
+        self.sin_m = math.sin(margin)
+        self.th = math.cos(math.pi - margin)
+        self.mm = math.sin(math.pi - margin) * margin
+        
+    def forward(self, x, gt):
+        x = self.conv(x)  
+        x = self.upsampling(x)
+        x_b, x_c, x_h, x_w = x.shape[:]
+        device = x.device
+        flatten_x = rearrange(x, 'b c h w -> (b h w) c')
+        # l1 norm
+        self.embedding.weight.data = l1norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
+        flatten_x = l1norm(flatten_x, dim=-1)
+        if not self.initted and self.init == 'kmeans':
+            self._kmeans_init(flatten_x)
+        # cosine
+        # cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes) slow...
+        cosine = torch.matmul(flatten_x, self.embedding.weight.transpose(0,1))
+        loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
+        if self.training and gt is not None:
+            # gt = label_to_onehot(gt, self.num_classes)
+            gt = gt.unsqueeze(1) if gt.dim()==3 else gt
+            flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
+            
+            x_ind = torch.arange(x_b*x_h*x_w) 
+            # margin
+            sine = torch.sqrt((1.0 - torch.pow(cosine, 2)).clamp(0, 1))
+            phi = cosine * self.cos_m - sine * self.sin_m
+            if self.easy_margin:
+                phi = torch.where(cosine > 0, phi, cosine)
+            else:
+                phi = torch.where(cosine > self.th, phi, cosine - self.mm)
+            # cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] - self.margin
+            cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] * phi[x_ind, flatten_gt[:,0]].to(torch.float16)
+            # cosine = cosine + self.margin * flatten_gt
+            # scale
+            cosine = self.scale * cosine
+            
+            positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
+            # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
+            sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
+            loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)) 
+        pred = rearrange(cosine, '(b h w) p -> b h w p', b=x_b, h=x_h, w=x_w, p=self.num_classes)
+        pred = rearrange(pred, 'b h w p -> b p h w')
+        pred = self.activation(pred)
+        commitment_loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
+        if self.training:
+            class_feat =self.embedding.weight.data[gt].permute(0, 4, 2, 3, 1).squeeze(-1)
+            class_feat = class_feat.detach() # codebook 쪽 sg 연산
+            commitloss = F.mse_loss(class_feat, x) # encoder update
+            commitment_loss = commitment_loss + commitloss 
+            
+        return pred, loss, commitment_loss
+    
+    def _kmeans_init(self, flatten_x):    
+        if self.initted:
+            return
+        
+        embed, cluster_size = kmeans(
+            flatten_x,
+            self.num_classes,
+            num_iters=10,
+        )
+        
+        self.embedding.weight.data.copy_(embed[0])
+        self.initted = True

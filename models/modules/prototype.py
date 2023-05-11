@@ -157,6 +157,7 @@ class PrototypeLoss(nn.Module):
         
         self.embedding.weight.data.copy_(embed[0])
         self.initted = True
+
         
 class EuclideanPrototypeLoss(nn.Module):
     def __init__(self, num_classes, embedding_dim, init='kmeans', use_feature=False) :
@@ -193,18 +194,18 @@ class EuclideanPrototypeLoss(nn.Module):
         if not self.initted and self.init == 'kmeans':
             self._kmeans_init(flatten_x)
         
-        indexes = [torch.nonzero(flatten_gt==i, as_tuple=True)[0] for i in range(self.num_classes)]
         if self.use_feature:
+            indexes = [torch.nonzero(flatten_gt==i, as_tuple=True)[0] for i in range(self.num_classes)]
             temp = []
             for i in range(self.num_classes):
                 temp.append(torch.mean(flatten_x[indexes[i]], dim=0, keepdim=True)) # (1, C)
             temp = torch.cat(temp, dim=0) # (num_classes, C)
             self.embedding.weight.data.copy_(temp)
-        
-        distance = torch.cdist(flatten_x.unsqueeze(0), self.embedding.weight.data.unsqueeze(0), p=2).squeeze(0) # (BHW, num_classes)
         loss = torch.tensor([0.], device=x.device, requires_grad=self.training, dtype=torch.float32)
-        x_ind = torch.arange(x_b*x_h*x_w)
-        loss = loss + torch.mean(distance[x_ind, flatten_gt[:,0]])
+        if self.training:
+            class_feat =self.embedding.weight.data[gt].permute(0, 4, 2, 3, 1).squeeze(-1)
+            class_feat = class_feat.detach() # codebook 쪽 sg 연산
+            loss = loss + F.mse_loss(class_feat, x) # encoder update
         return loss
     
     def _kmeans_init(self, flatten_x):    

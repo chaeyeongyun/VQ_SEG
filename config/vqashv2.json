@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQEuclideanPTUnet",
+    "project_name":"VQASHUnet_v2",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{
@@ -9,7 +9,7 @@
     },
     "resize":512,
     "model":{
-        "name":"vqeuptunet",
+        "name":"vqashunetv2",
         "params":{
             "encoder_name":"resnet50",
             "num_classes":3,
@@ -19,7 +19,8 @@
                 "distance":"euclidean",
                 "kmeans_init": true
                 },
-            "learnable_alpha":false,
+            "margin":1.57,
+            "scale":30.0,
             "use_feature":false,
             "encoder_weights":"imagenet_swsl"
             }
@@ -38,18 +39,19 @@
         },
         "half":true,
         "init_weights":true,
-        "bn_eps": 1e-4,
+        "bn_eps":1e-5,
         "bn_momentum":0.1,
-        "criterion":"dice_loss",
+        "criterion":"cross_entropy",
         "cps_loss_weight":1,
         "total_commitment_loss_weight":1,
-        "total_prototype_loss_weight":0.01,
+        "total_angular_loss_weight":1,
+        "total_seghead_commit_loss_weight":10,
         "resume":null,
         "save_img":true,
         "save_txt":true,
         "save_as_tar":false,
         "wandb_config":["batch_size", "num_epochs"],
-        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "cps_loss", "commitment_loss", "prototype_loss", "crop_iou", "weed_iou", "back_iou"],
+        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "cps_loss", "commitment_loss", "angular_loss", "crop_iou", "weed_iou", "back_iou"],
         "wandb_metrics":["loss", "miou"] 
     },
     "test":{
