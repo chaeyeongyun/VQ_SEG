@@ -9,6 +9,7 @@ import wandb
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+import numpy as np
 
 import models
 from utils.logger import Logger, list_to_separate_log
@@ -25,6 +26,25 @@ from data.dataset import BaseDataset
 
 from loss import make_loss
 from measurement import Measurement
+
+def to_pseudo_label(tensor:torch.Tensor):
+    return torch.argmax(tensor, dim=1).long()
+
+def cal_unsuploss_weight(pred, target, percent, pred_teacher):
+    batch_size, num_class, h, w = pred.shape
+    with torch.no_grad():
+        # drop pixels with high entropy
+        prob = torch.softmax(pred_teacher, dim=1)
+        entropy = -torch.sum(prob * torch.log(prob + 1e-10), dim=1)
+
+        thresh = np.percentile(
+            entropy[target != 255].detach().cpu().numpy().flatten(), percent
+        )
+        thresh_mask = entropy.ge(thresh).bool() * (target != 255).bool()
+
+        target[thresh_mask] = 255
+        weight = batch_size * h * w / torch.sum(target != 255)
+    return weight
 
 # 일단 no cutmix version
 def train(cfg):
@@ -86,14 +106,14 @@ def train(cfg):
     # progress bar
     cps_loss_weight = cfg.train.cps_loss_weight
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
-    total_angular_loss_weight = cfg.train.total_angular_loss_weight
+    total_prototype_loss_weight = cfg.train.total_prototype_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
     for epoch in range(num_epochs):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
         crop_iou, weed_iou, back_iou = 0, 0, 0
         sum_cps_loss, sum_sup_loss_1, sum_sup_loss_2 = 0, 0, 0
         sum_commitment_loss = 0
-        sum_angular_loss = 0
+        sum_prototype_loss = 0
         sum_loss = 0
         sum_miou = 0
         ep_start = time.time()
@@ -113,25 +133,33 @@ def train(cfg):
             pseudo_1 = model_1.pseudo_label(ul_input)
             pseudo_2 = model_2.pseudo_label(ul_input)
             with torch.cuda.amp.autocast(enabled=half):
-                pred_sup_1, commitment_loss_l1, code_usage_l1, angular_loss_l1 = model_1(l_input, l_target)
-                pred_sup_2, commitment_loss_l2, code_usage_l2, angular_loss_l2 = model_2(l_input, l_target)
+                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target)
+                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target)
                 ## predict in unsupervised manner ##
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1, angular_loss_ul1 = model_1(ul_input, pseudo_2)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2, angular_loss_ul2 = model_2(ul_input, pseudo_1)
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2)
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             
             ## cps loss ##
-            pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
-            pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
+            # pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
+            # pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
             # pseudo label
-            pseudo_1 = torch.argmax(pred_1, dim=1).long()
-            pseudo_2 = torch.argmax(pred_2, dim=1).long()
-            
+            # pseudo_1 = torch.argmax(pred_1, dim=1).long()
+            # pseudo_2 = torch.argmax(pred_2, dim=1).long()
+            pseudo_l_1, pseudo_l_2 = to_pseudo_label(pred_sup_1), to_pseudo_label(pred_sup_2)
+            pseudo_ul_1, pseudo_ul_2 = to_pseudo_label(pred_ul_1), to_pseudo_label(pred_ul_2)
             
             with torch.cuda.amp.autocast(enabled=half):
                 ## cps loss
-                cps_loss = criterion(pred_1, pseudo_2) + criterion(pred_2, pseudo_1)
+                l_index = pred_sup_1.shape[0]
+                percent_unreliable = cfg.train.unsup_loss_drop_percent * (1-epoch/num_epochs)
+                drop_percent = 100 - percent_unreliable
+                unreliable_weight_1 = cal_unsuploss_weight(pred_ul_2, pseudo_ul_1.clone(), drop_percent, pred_ul_1.detach())
+                unreliable_weight_2 = cal_unsuploss_weight(pred_ul_1, pseudo_ul_2.clone(), drop_percent, pred_ul_2.detach())
+                cps_loss_l = criterion(pred_sup_1, pseudo_l_2) + criterion(pred_sup_2, pseudo_l_1)
+                cps_loss_ul = unreliable_weight_2*criterion(pred_ul_1, pseudo_ul_2) + unreliable_weight_1*criterion(pred_ul_2, pseudo_ul_1)
+                cps_loss = cps_loss_l + cps_loss_ul
                 ## supervised loss
                 sup_loss_1 = criterion(pred_sup_1, l_target)
                 sup_loss_2 = criterion(pred_sup_2, l_target)
@@ -139,9 +167,9 @@ def train(cfg):
                 ## commitment_loss
                 commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
                 commitment_loss *= total_commitment_loss_weight
-                ## angular_loss
-                angular_loss = angular_loss_l1 + angular_loss_l2 + angular_loss_ul1 + angular_loss_ul2
-                angular_loss *= total_angular_loss_weight
+                ## prototype_loss
+                prototype_loss = prototype_loss_l1 + prototype_loss_l2 + prototype_loss_ul1 + prototype_loss_ul2
+                prototype_loss *= total_prototype_loss_weight
                 
                 ## learning rate update
                 current_idx = epoch * len(unsup_loader) + batch_idx
@@ -150,7 +178,7 @@ def train(cfg):
                 optimizer_1.param_groups[0]['lr'] = learning_rate
                 optimizer_2.param_groups[0]['lr'] = learning_rate
                 
-                loss = sup_loss + cps_loss_weight*cps_loss + commitment_loss + angular_loss
+                loss = sup_loss + cps_loss_weight*cps_loss + commitment_loss + prototype_loss
                 sum_code_usage += (code_usage_l1 + code_usage_l2 + code_usage_ul1 + code_usage_ul2) / 4 
                 
             scaler.scale(loss).backward()
@@ -166,12 +194,12 @@ def train(cfg):
             sum_sup_loss_1 += sup_loss_1.item()
             sum_sup_loss_2 += sup_loss_2.item()
             sum_commitment_loss += commitment_loss.item()
-            sum_angular_loss += angular_loss.item()
+            sum_prototype_loss += prototype_loss.item()
             back_iou += iou_list[0]
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
-                            + f"miou={step_miou:.4f}, sup_loss_1={sup_loss_1:.4f}, angular_loss={angular_loss.item():.4f}, cps_loss={cps_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}"
+                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss.item():.4f}, cps_loss={cps_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
@@ -184,12 +212,12 @@ def train(cfg):
         sup_loss_1 = sum_sup_loss_1 / len(unsup_loader)
         sup_loss_2 = sum_sup_loss_2 / len(unsup_loader)
         commitment_loss = sum_commitment_loss / len(unsup_loader)
-        angular_loss = sum_angular_loss / len(unsup_loader)
+        prototype_loss = sum_prototype_loss / len(unsup_loader)
         loss = sum_loss / len(unsup_loader)
         miou = sum_miou / len(unsup_loader)
         
         print_txt = f"[Epoch{epoch}]" \
-                            + f"miou={miou:.4f}, sup_loss_1={sup_loss_1:.4f}, angular_loss={angular_loss:.4f}, cps_loss={cps_loss:.4f}, commitment_loss={commitment_loss:.4f}"
+                            + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss:.4f}, cps_loss={cps_loss:.4f}, commitment_loss={commitment_loss:.4f}"
         print(print_txt)
         if logger != None:
             log_txt.write(print_txt)
@@ -232,37 +260,17 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqash.json')
-    # parser.add_argument('--config_path', default='./config/vqash_deep.json')
+    parser.add_argument('--config_path', default='./config/vq_pt_unet.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    # cfg.resize=32
-    # cfg.project_name = 'debug'
-    # cfg.wandb_logging = False
-    # # cfg.train.half=False
-    # cfg.resize = 256
+    # cfg.resize=64
+    cfg.project_name = 'debug'
+    cfg.wandb_logging = False
+    # cfg.train.device=-1
+    # cfg.train.half=False
+    cfg.resize = 448
     # train(cfg)
-    
-    # cfg.train.save_as_tar = True
-   
-    # # 2. imagenet weight x
-    # cfg.model.params.encoder_weights = None
-    # cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
-    # train(cfg)
-
-    # cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
-    # train(cfg)
-    
-    #  # 1. imagenet weight o
-    # cfg.model.params.encoder_weights = "imagenet_swsl"
-    # cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
-    # train(cfg)
-
-    # cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
-    # train(cfg)
-    # cfg.model.params.encoder_weights = None
-    # train(cfg)
-    cfg.resize=448
-    cfg.model.params.encoder_weights = "imagenet_swsl"
     train(cfg)
+    # cfg.model.params.pop("encoder_weights")
+    # train(cfg)

@@ -162,7 +162,7 @@ class VQPTUnet(nn.Module):
         ):
         super().__init__()
         
-        self.encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights)    
+        self.encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights, padding_mode='reflect')    
         encoder_channels = self.encoder.out_channels()
         self.codebook = make_vq_module(vq_cfg, encoder_channels, depth)
         
@@ -248,7 +248,7 @@ class VQEuPTUnet(nn.Module):
         ):
         super().__init__()
         
-        self.encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights)    
+        self.encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights, padding_mode='reflect')    
         encoder_channels = self.encoder.out_channels()
         self.codebook = make_vq_module(vq_cfg, encoder_channels, depth)
         
@@ -332,7 +332,7 @@ class VQASHUnet(nn.Module):
         ):
         super().__init__()
         
-        self.encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights)    
+        self.encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights, padding_mode='reflect')    
         encoder_channels = self.encoder.out_channels()
         self.codebook = make_vq_module(vq_cfg, encoder_channels, depth)
         

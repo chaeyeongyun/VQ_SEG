@@ -2,10 +2,10 @@ from .resnet import resnet_encoders, ResNetEncoder
 from .pretrained_settings import *
 import torch.utils.model_zoo as model_zoo
 
-def make_encoder(name:str, in_channels:int, depth:int=5, weights=None, **kwargs):
+def make_encoder(name:str, in_channels:int, depth:int=5, weights=None, padding_mode='zeros', **kwargs):
     if 'resnet' in name:
         params = resnet_encoders[name]["params"]
-        encoder = ResNetEncoder(depth=depth, **params, in_channels=in_channels)
+        encoder = ResNetEncoder(depth=depth, **params, in_channels=in_channels, padding_mode=padding_mode)
         if weights is not None:
             if weights == "imagenet":
                 settings = ImageNet()

@@ -25,6 +25,63 @@ from data.dataset import BaseDataset
 
 from loss import make_loss
 from measurement import Measurement
+#TODO: 
+def semi_ce_loss(inputs, targets,
+                 conf_mask=True, threshold=None,
+                 threshold_neg=.0, temperature_value=1):
+    # target => logit, input => logit
+    pass_rate = {}
+    if conf_mask:
+        # for negative
+        targets_prob = F.softmax(targets/temperature_value, dim=1) # temperature 적용 softmax
+        
+        # for positive
+        targets_real_prob = F.softmax(targets, dim=1) # 일반 softmax
+        
+        weight = targets_real_prob.max(1)[0] # 가장 큰 값
+        total_number = len(targets_prob.flatten(0)) # 걍 일렬로 쭉 펴버려
+        boundary = ["< 0.1", "0.1~0.2", "0.2~0.3",
+                    "0.3~0.4", "0.4~0.5", "0.5~0.6",
+                    "0.6~0.7", "0.7~0.8", "0.8~0.9",
+                    "> 0.9"]
+
+        rate = [torch.sum((torch.logical_and((i - 1) / 10 < targets_real_prob, targets_real_prob < i / 10)) == True)
+                / total_number for i in range(1, 11)] # 위에 나온 boundary 범위별로 리스트 생성
+
+        max_rate = [torch.sum((torch.logical_and((i - 1) / 10 < weight, weight < i / 10)) == True)
+                    / weight.numel() for i in range(1, 11)]
+
+        pass_rate["entire_prob_boundary"] = [[label, val] for (label, val) in zip(boundary, rate)]
+        pass_rate["max_prob_boundary"] = [[label, val] for (label, val) in zip(boundary, max_rate)]
+
+        mask = (weight >= threshold) # 가장 큰 값에서 threshold보다 큰 픽셀들만 1
+
+        mask_neg = (targets_prob < threshold_neg) # threshold_neg보다 작은 값들만 1
+
+        neg_label = torch.nn.functional.one_hot(torch.argmax(targets_prob, dim=1)).type(targets.dtype) # negative 대한 prob이었던 temperature + softmax를 onehot 라벨로 변환
+        if neg_label.shape[-1] != 21: # 클래스수 안맞게 나올 경우에 대한거임
+            neg_label = torch.cat((neg_label, torch.zeros([neg_label.shape[0], neg_label.shape[1],
+                                                           neg_label.shape[2], 21 - neg_label.shape[-1]]).cuda()),
+                                  dim=3)
+        neg_label = neg_label.permute(0, 3, 1, 2)
+        neg_label = 1 - neg_label
+          
+        if not torch.any(mask):  # True값이 하나라도 있으면
+            neg_prediction_prob = torch.clamp(1-F.softmax(inputs, dim=1), min=1e-7, max=1.)
+            negative_loss_mat = -(neg_label * torch.log(neg_prediction_prob))
+            zero = torch.tensor(0., dtype=torch.float, device=negative_loss_mat.device)
+            return zero, pass_rate, negative_loss_mat[mask_neg].mean()
+        else:
+            positive_loss_mat = F.cross_entropy(inputs, torch.argmax(targets, dim=1), reduction="none")
+            positive_loss_mat = positive_loss_mat * weight
+
+            neg_prediction_prob = torch.clamp(1-F.softmax(inputs, dim=1), min=1e-7, max=1.)
+            negative_loss_mat = -(neg_label * torch.log(neg_prediction_prob))
+
+            return positive_loss_mat[mask].mean(), pass_rate, negative_loss_mat[mask_neg].mean()
+    else:
+        raise NotImplementedError
+
 
 # 일단 no cutmix version
 def train(cfg):
@@ -86,14 +143,14 @@ def train(cfg):
     # progress bar
     cps_loss_weight = cfg.train.cps_loss_weight
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
-    total_angular_loss_weight = cfg.train.total_angular_loss_weight
+    total_prototype_loss_weight = cfg.train.total_prototype_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
     for epoch in range(num_epochs):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
         crop_iou, weed_iou, back_iou = 0, 0, 0
         sum_cps_loss, sum_sup_loss_1, sum_sup_loss_2 = 0, 0, 0
         sum_commitment_loss = 0
-        sum_angular_loss = 0
+        sum_prototype_loss = 0
         sum_loss = 0
         sum_miou = 0
         ep_start = time.time()
@@ -113,11 +170,11 @@ def train(cfg):
             pseudo_1 = model_1.pseudo_label(ul_input)
             pseudo_2 = model_2.pseudo_label(ul_input)
             with torch.cuda.amp.autocast(enabled=half):
-                pred_sup_1, commitment_loss_l1, code_usage_l1, angular_loss_l1 = model_1(l_input, l_target)
-                pred_sup_2, commitment_loss_l2, code_usage_l2, angular_loss_l2 = model_2(l_input, l_target)
+                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target)
+                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target)
                 ## predict in unsupervised manner ##
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1, angular_loss_ul1 = model_1(ul_input, pseudo_2)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2, angular_loss_ul2 = model_2(ul_input, pseudo_1)
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2)
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             
@@ -139,9 +196,9 @@ def train(cfg):
                 ## commitment_loss
                 commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
                 commitment_loss *= total_commitment_loss_weight
-                ## angular_loss
-                angular_loss = angular_loss_l1 + angular_loss_l2 + angular_loss_ul1 + angular_loss_ul2
-                angular_loss *= total_angular_loss_weight
+                ## prototype_loss
+                prototype_loss = prototype_loss_l1 + prototype_loss_l2 + prototype_loss_ul1 + prototype_loss_ul2
+                prototype_loss *= total_prototype_loss_weight
                 
                 ## learning rate update
                 current_idx = epoch * len(unsup_loader) + batch_idx
@@ -150,7 +207,7 @@ def train(cfg):
                 optimizer_1.param_groups[0]['lr'] = learning_rate
                 optimizer_2.param_groups[0]['lr'] = learning_rate
                 
-                loss = sup_loss + cps_loss_weight*cps_loss + commitment_loss + angular_loss
+                loss = sup_loss + cps_loss_weight*cps_loss + commitment_loss + prototype_loss
                 sum_code_usage += (code_usage_l1 + code_usage_l2 + code_usage_ul1 + code_usage_ul2) / 4 
                 
             scaler.scale(loss).backward()
@@ -166,12 +223,12 @@ def train(cfg):
             sum_sup_loss_1 += sup_loss_1.item()
             sum_sup_loss_2 += sup_loss_2.item()
             sum_commitment_loss += commitment_loss.item()
-            sum_angular_loss += angular_loss.item()
+            sum_prototype_loss += prototype_loss.item()
             back_iou += iou_list[0]
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
-                            + f"miou={step_miou:.4f}, sup_loss_1={sup_loss_1:.4f}, angular_loss={angular_loss.item():.4f}, cps_loss={cps_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}"
+                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss.item():.4f}, cps_loss={cps_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
@@ -184,12 +241,12 @@ def train(cfg):
         sup_loss_1 = sum_sup_loss_1 / len(unsup_loader)
         sup_loss_2 = sum_sup_loss_2 / len(unsup_loader)
         commitment_loss = sum_commitment_loss / len(unsup_loader)
-        angular_loss = sum_angular_loss / len(unsup_loader)
+        prototype_loss = sum_prototype_loss / len(unsup_loader)
         loss = sum_loss / len(unsup_loader)
         miou = sum_miou / len(unsup_loader)
         
         print_txt = f"[Epoch{epoch}]" \
-                            + f"miou={miou:.4f}, sup_loss_1={sup_loss_1:.4f}, angular_loss={angular_loss:.4f}, cps_loss={cps_loss:.4f}, commitment_loss={commitment_loss:.4f}"
+                            + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss:.4f}, cps_loss={cps_loss:.4f}, commitment_loss={commitment_loss:.4f}"
         print(print_txt)
         if logger != None:
             log_txt.write(print_txt)
@@ -232,37 +289,16 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqash.json')
-    # parser.add_argument('--config_path', default='./config/vqash_deep.json')
+    parser.add_argument('--config_path', default='./config/vq_pt_unet.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    # cfg.resize=32
+    # cfg.resize=512
     # cfg.project_name = 'debug'
-    # cfg.wandb_logging = False
-    # # cfg.train.half=False
-    # cfg.resize = 256
+    cfg.wandb_logging = False
+    # cfg.train.half=False
+    cfg.resize = 448
     # train(cfg)
-    
-    # cfg.train.save_as_tar = True
-   
-    # # 2. imagenet weight x
-    # cfg.model.params.encoder_weights = None
-    # cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
-    # train(cfg)
-
-    # cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
-    # train(cfg)
-    
-    #  # 1. imagenet weight o
-    # cfg.model.params.encoder_weights = "imagenet_swsl"
-    # cfg.model.params.decoder_channels = [1024, 512, 512, 512, 512]
-    # train(cfg)
-
-    # cfg.model.params.decoder_channels = [1024, 512, 256, 256, 256]
-    # train(cfg)
-    # cfg.model.params.encoder_weights = None
-    # train(cfg)
-    cfg.resize=448
-    cfg.model.params.encoder_weights = "imagenet_swsl"
     train(cfg)
+    # cfg.model.params.pop("encoder_weights")
+    # train(cfg)

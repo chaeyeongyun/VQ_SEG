@@ -100,15 +100,36 @@ resnet_encoders = {
 
 class ResNetEncoder(ResNet):
     '''for unet'''
-    def __init__(self, out_channels, depth=5, in_channels=3, **kwargs):
+    def __init__(self, out_channels, depth=5, in_channels=3, padding_mode='zeros', **kwargs):
         super().__init__(**kwargs)
         self._depth = depth
         self._out_channels = out_channels
         self._in_channels = in_channels
         if self._in_channels != 3:
-            self.conv1 = nn.Conv2d(self._in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
+            self.conv1 = nn.Conv2d(self._in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False, padding_mode=padding_mode)
+        else:
+            self.conv1 = nn.Conv2d(self._in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False, padding_mode=padding_mode)
         del self.fc
         del self.avgpool
+        if padding_mode != 'zeros':
+            assert padding_mode in ['reflect', 'replicate', 'circular'], f"padding_mode {padding_mode} is not available"
+            self._change_padding_mode(padding_mode)
+            
+    def _change_padding_mode(self, padding_mode):
+        for name, child in self.named_children():
+            if isinstance(child, nn.Conv2d):
+                self._modules[name].padding_mode = padding_mode
+            elif isinstance(child, nn.Sequential):
+                for sname, schild in child.named_children():
+                    if isinstance(schild, nn.Conv2d):
+                        # print(name,sname)
+                        self._modules[name]._modules[sname].padding_mode = padding_mode
+                    if isinstance(schild, Bottleneck):
+                        # print(name,sname)
+                        for bname, bchild in schild.named_children():
+                            if isinstance(bchild, nn.Conv2d):
+                                # print(name,sname, bname)
+                                self._modules[name]._modules[sname]._modules[bname].padding_mode = padding_mode
 
     def get_stages(self):
         '''
