@@ -33,10 +33,10 @@ def semi_ce_loss(inputs, targets,
     pass_rate = {}
     if conf_mask:
         # for negative
-        targets_prob = F.softmax(targets/temperature_value, dim=1) # temperature 적용 softmax
+        targets_prob = torch.softmax(targets/temperature_value, dim=1) # temperature 적용 softmax
         
         # for positive
-        targets_real_prob = F.softmax(targets, dim=1) # 일반 softmax
+        targets_real_prob = torch.softmax(targets, dim=1) # 일반 softmax
         
         weight = targets_real_prob.max(1)[0] # 가장 큰 값
         total_number = len(targets_prob.flatten(0)) # 걍 일렬로 쭉 펴버려

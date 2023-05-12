@@ -165,10 +165,10 @@ def train(cfg):
                 sup_loss_2 = criterion(pred_sup_2, l_target)
                 sup_loss = sup_loss_1 + sup_loss_2
                 ## commitment_loss
-                commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
+                commitment_loss = commitment_loss_l1 + commitment_loss_l2 + unreliable_weight_1*commitment_loss_ul1 + unreliable_weight_2*commitment_loss_ul2
                 commitment_loss *= total_commitment_loss_weight
                 ## prototype_loss
-                prototype_loss = prototype_loss_l1 + prototype_loss_l2 + prototype_loss_ul1 + prototype_loss_ul2
+                prototype_loss = prototype_loss_l1 + prototype_loss_l2 + prototype_loss_ul1*unreliable_weight_1 + prototype_loss_ul2*unreliable_weight_2
                 prototype_loss *= total_prototype_loss_weight
                 
                 ## learning rate update
@@ -265,10 +265,11 @@ if __name__ == "__main__":
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=64
-    cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     # cfg.train.device=-1
     # cfg.train.half=False
+    cfg.project_name = 'VQPTUnet_unreliable_loss'
     cfg.resize = 448
     # train(cfg)
     train(cfg)
