@@ -110,8 +110,8 @@ def train(cfg):
             l_target = l_target.to(device)
             ul_input = ul_input.to(device)
 
-            pseudo_1 = model_1.pseudo_label(ul_input)
-            pseudo_2 = model_2.pseudo_label(ul_input)
+            pseudo_1 = model_1.pseudo_label(ul_input).detach()
+            pseudo_2 = model_2.pseudo_label(ul_input).detach()
             with torch.cuda.amp.autocast(enabled=half):
                 pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target)
                 pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target)
@@ -125,8 +125,8 @@ def train(cfg):
             pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
             pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
             # pseudo label
-            pseudo_1 = torch.argmax(pred_1, dim=1).long()
-            pseudo_2 = torch.argmax(pred_2, dim=1).long()
+            pseudo_1 = torch.argmax(pred_1, dim=1).long().detach()
+            pseudo_2 = torch.argmax(pred_2, dim=1).long().detach()
             
             
             with torch.cuda.amp.autocast(enabled=half):
