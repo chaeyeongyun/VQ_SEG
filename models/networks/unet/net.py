@@ -585,8 +585,8 @@ class VQATUnet(nn.Module):
                                                   upsampling=upsampling,
                                                   activation=activation,
                                                   kernel_size=3)
-        # flag = list(map(lambda x: x!=0, vq_cfg.num_embeddings))
-        self.attention = make_attentions(attention, encoder_channels[1:], [False]*4+[True])
+        flag = list(map(lambda x: x!=0, vq_cfg.num_embeddings))
+        self.attention = make_attentions(attention, encoder_channels[1:], flag=flag)
         
     def forward(self, x, code_usage_loss=False):
         features = self.encoder(x)[1:]

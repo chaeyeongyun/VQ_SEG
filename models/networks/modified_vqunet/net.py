@@ -41,8 +41,8 @@ class DRSAVQUnet(nn.Module):
                                                   upsampling=upsampling,
                                                   activation=activation,
                                                   kernel_size=3)
-        # flag = list(map(lambda x: x==0, vq_cfg.num_embeddings))
-        flag = [False, False, True, True, False]
+        flag = list(map(lambda x: x==0, vq_cfg.num_embeddings))
+        # flag = [False, False, True, True, False]
         self.attention = make_attentions(attention, encoder_channels[1:], flag)
         
     def forward(self, x, code_usage_loss=False):

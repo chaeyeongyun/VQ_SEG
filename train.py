@@ -221,7 +221,7 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/cps_vqv2.json')
+    parser.add_argument('--config_path', default='./config/cps_vqv2_kmeans_init.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
@@ -231,9 +231,11 @@ if __name__ == "__main__":
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
-    cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
-    cfg.train.criterion = "dice_loss"
+    # cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
+    cfg.train.criterion = "cross_entropy"
     cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
     train(cfg)
-    cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
+    cfg.model.params.encoder_weights = "imagenet_swsl"
     train(cfg)
+    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
+    # train(cfg)

@@ -5,6 +5,7 @@ from itertools import cycle
 from tqdm import tqdm
 import time
 import wandb
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -25,9 +26,29 @@ from data.dataset import BaseDataset
 
 from loss import make_loss
 from measurement import Measurement
+
+
+def to_pseudo_label(tensor:torch.Tensor):
+    return torch.argmax(tensor, dim=1).long()
+
+def cal_unsuploss_weight(pred, target, percent, pred_teacher):
+    batch_size, num_class, h, w = pred.shape
+    with torch.no_grad():
+        # drop pixels with high entropy
+        prob = torch.softmax(pred_teacher, dim=1)
+        entropy = -torch.sum(prob * torch.log(prob + 1e-10), dim=1)
+
+        thresh = np.percentile(
+            entropy[target != 255].detach().cpu().numpy().flatten(), percent
+        )
+        thresh_mask = entropy.ge(thresh).bool() * (target != 255).bool()
+
+        target[thresh_mask] = 255
+        weight = batch_size * h * w / torch.sum(target != 255)
+    return weight
 #TODO: 
-def semi_ce_loss(inputs, targets,
-                 conf_mask=True, threshold=None,
+def conf_ce_loss(inputs, targets,
+                 conf_mask=True, threshold=0.6,
                  threshold_neg=.0, temperature_value=1):
     # target => logit, input => logit
     pass_rate = {}
@@ -59,26 +80,35 @@ def semi_ce_loss(inputs, targets,
         mask_neg = (targets_prob < threshold_neg) # threshold_neg보다 작은 값들만 1
 
         neg_label = torch.nn.functional.one_hot(torch.argmax(targets_prob, dim=1)).type(targets.dtype) # negative 대한 prob이었던 temperature + softmax를 onehot 라벨로 변환
-        if neg_label.shape[-1] != 21: # 클래스수 안맞게 나올 경우에 대한거임
+        if neg_label.shape[-1] != 3: # 클래스수 안맞게 나올 경우에 대한거임
             neg_label = torch.cat((neg_label, torch.zeros([neg_label.shape[0], neg_label.shape[1],
-                                                           neg_label.shape[2], 21 - neg_label.shape[-1]]).cuda()),
+                                                           neg_label.shape[2], 3 - neg_label.shape[-1]]).cuda()),
                                   dim=3)
         neg_label = neg_label.permute(0, 3, 1, 2)
         neg_label = 1 - neg_label
           
         if not torch.any(mask):  # True값이 하나라도 있으면
-            neg_prediction_prob = torch.clamp(1-F.softmax(inputs, dim=1), min=1e-7, max=1.)
+            neg_prediction_prob = torch.clamp(1-torch.softmax(inputs, dim=1), min=1e-7, max=1.)
             negative_loss_mat = -(neg_label * torch.log(neg_prediction_prob))
             zero = torch.tensor(0., dtype=torch.float, device=negative_loss_mat.device)
-            return zero, pass_rate, negative_loss_mat[mask_neg].mean()
+            loss_unsup = zero
+            # return zero, pass_rate, negative_loss_mat[mask_neg].mean()
         else:
-            positive_loss_mat = F.cross_entropy(inputs, torch.argmax(targets, dim=1), reduction="none")
+            positive_loss_mat = torch.nn.functional.cross_entropy(inputs, torch.argmax(targets, dim=1), reduction="none")
             positive_loss_mat = positive_loss_mat * weight
 
-            neg_prediction_prob = torch.clamp(1-F.softmax(inputs, dim=1), min=1e-7, max=1.)
+            neg_prediction_prob = torch.clamp(1-torch.softmax(inputs, dim=1), min=1e-7, max=1.)
             negative_loss_mat = -(neg_label * torch.log(neg_prediction_prob))
+            loss_unsup = positive_loss_mat[mask].mean()
+            # return positive_loss_mat[mask].mean(), pass_rate, negative_loss_mat[mask_neg].mean()
+        neg_loss = negative_loss_mat[mask_neg].mean()
+        # for negative learning
+        if threshold_neg > .0:
+            confident_reg = .5 * torch.mean(torch.softmax(inputs, dim=1) ** 2)
+            loss_unsup += neg_loss
+            loss_unsup += confident_reg
 
-            return positive_loss_mat[mask].mean(), pass_rate, negative_loss_mat[mask_neg].mean()
+        return loss_unsup
     else:
         raise NotImplementedError
 
@@ -118,8 +148,8 @@ def train(cfg):
                         nn.BatchNorm2d, cfg.train.bn_eps, cfg.train.bn_momentum, 
                         mode='fan_in', nonlinearity='relu')
     
-    criterion = make_loss(cfg.train.criterion, num_classes, ignore_index=255)
-    
+    # criterion = make_loss(cfg.train.criterion, num_classes, ignore_index=255)
+    criterion = nn.CrossEntropyLoss()
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
     unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled',  batch_size=batch_size, resize=cfg.resize)
     
@@ -178,26 +208,35 @@ def train(cfg):
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             
-            ## cps loss ##
-            pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
-            pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
+             ## cps loss ##
+            # pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
+            # pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
             # pseudo label
-            pseudo_1 = torch.argmax(pred_1, dim=1).long()
-            pseudo_2 = torch.argmax(pred_2, dim=1).long()
-            
+            # pseudo_1 = torch.argmax(pred_1, dim=1).long()
+            # pseudo_2 = torch.argmax(pred_2, dim=1).long()
+            pseudo_l_1, pseudo_l_2 = to_pseudo_label(pred_sup_1), to_pseudo_label(pred_sup_2)
+            pseudo_ul_1, pseudo_ul_2 = to_pseudo_label(pred_ul_1), to_pseudo_label(pred_ul_2)
             
             with torch.cuda.amp.autocast(enabled=half):
                 ## cps loss
-                cps_loss = criterion(pred_1, pseudo_2) + criterion(pred_2, pseudo_1)
+                l_index = pred_sup_1.shape[0]
+                percent_unreliable = cfg.train.unsup_loss_drop_percent * (1-epoch/num_epochs)
+                drop_percent = 100 - percent_unreliable
+                unreliable_weight_1 = cal_unsuploss_weight(pred_ul_2, pseudo_ul_1.clone(), drop_percent, pred_ul_1.detach())
+                unreliable_weight_2 = cal_unsuploss_weight(pred_ul_1, pseudo_ul_2.clone(), drop_percent, pred_ul_2.detach())
+                cps_loss_l = criterion(pred_sup_1, pseudo_l_2) + criterion(pred_sup_2, pseudo_l_1)
+                cps_loss_ul = unreliable_weight_2*conf_ce_loss(pred_ul_1, pred_ul_2) + unreliable_weight_1*conf_ce_loss(pred_ul_2, pred_ul_1)
+                cps_loss = cps_loss_l + cps_loss_ul
+            
                 ## supervised loss
                 sup_loss_1 = criterion(pred_sup_1, l_target)
                 sup_loss_2 = criterion(pred_sup_2, l_target)
                 sup_loss = sup_loss_1 + sup_loss_2
-                ## commitment_loss
-                commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
+               ## commitment_loss
+                commitment_loss = commitment_loss_l1 + commitment_loss_l2 + unreliable_weight_1*commitment_loss_ul1 + unreliable_weight_2*commitment_loss_ul2
                 commitment_loss *= total_commitment_loss_weight
                 ## prototype_loss
-                prototype_loss = prototype_loss_l1 + prototype_loss_l2 + prototype_loss_ul1 + prototype_loss_ul2
+                prototype_loss = prototype_loss_l1 + prototype_loss_l2 + prototype_loss_ul1*unreliable_weight_1 + prototype_loss_ul2*unreliable_weight_2
                 prototype_loss *= total_prototype_loss_weight
                 
                 ## learning rate update
@@ -295,8 +334,9 @@ if __name__ == "__main__":
     # debug
     # cfg.resize=512
     # cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.wandb_logging = False
     # cfg.train.half=False
+    cfg.project_name = 'VQPT+confCE'
     cfg.resize = 448
     # train(cfg)
     train(cfg)

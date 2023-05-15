@@ -38,7 +38,7 @@
         "init_weights":true,
         "bn_eps":1e-5,
         "bn_momentum":0.1,
-        "criterion":"dice_loss",
+        "criterion":"cross_entropy",
         "cps_loss_weight":1,
         "total_commitment_loss_weight":1,
         "resume":null,

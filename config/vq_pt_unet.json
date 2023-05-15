@@ -21,7 +21,7 @@
                 },
             "margin":0.5,
             "scale":30.0,
-            "use_feature":true,
+            "use_feature":false,
             "encoder_weights":"imagenet_swsl"
             }
         },
