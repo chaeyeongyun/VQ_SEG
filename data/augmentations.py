@@ -1,5 +1,6 @@
 from typing import Iterable, Union
 from torchvision import transforms
+import torchvision
 import torchvision.transforms.functional as TF
 import torch
 import numpy as np
@@ -65,8 +66,8 @@ class CutMix():
         batch_size = batch.shape[0]
         h, w = batch.shape[-2:]
         if mask is None:
-            mask = self._make_mask((h,w), self.ratio).to(batch.device)
-        mixed = [(input[i]*mask + input[(i+1)%batch_size]*(1-mask)).unsqueeze(0) for i in range(batch_size)]
+            mask = self._make_mask((h,w)).to(batch.device)
+        mixed = [(batch[i]*mask + batch[(i+1)%batch_size]*(1-mask)).unsqueeze(0) for i in range(batch_size)]
         mixed = torch.cat(mixed, dim=0)
         return mixed, mask
 
@@ -103,8 +104,9 @@ class CutOut():
 
 
         
-def random_similarity_transform(input:torch.Tensor):
-    aug = random.randint(0, 9)
+def similarity_transform(input:torch.Tensor, aug:int=None):
+    if aug is None:
+        aug = random.randint(0, 9)
     angle = .0
     if aug == 1:
         input = input.flip(-1)
@@ -114,20 +116,20 @@ def random_similarity_transform(input:torch.Tensor):
         rand_rot = transforms.RandomRotation(90)
         angle = rand_rot.get_params([.0, 90.0])
         if aug == 3:
-            TF.rotate(input, angle, interpolation=Image.Resampling.BILINEAR)
+            TF.rotate(input, angle, interpolation=transforms.InterpolationMode.BILINEAR)
         if aug == 4:
             angle = -angle
-            TF.rotate(input, -angle, interpolation=Image.Resampling.BILINEAR)
+            TF.rotate(input, -angle, interpolation=transforms.InterpolationMode.BILINEAR)
         if aug == 5:
-            TF.rotate(input.flip(-1), angle, interpolation=Image.Resampling.BILINEAR)
+            TF.rotate(input.flip(-1), angle, interpolation=transforms.InterpolationMode.BILINEAR)
         if aug == 6:
             angle = -angle
-            TF.rotate(input.flip(-1), -angle, interpolation=Image.Resampling.BILINEAR)
+            TF.rotate(input.flip(-1), -angle, interpolation=transforms.InterpolationMode.BILINEAR)
         if aug == 7:
-            TF.rotate(input.flip(-2), angle, interpolation=Image.Resampling.BILINEAR)
+            TF.rotate(input.flip(-2), angle, interpolation=transforms.InterpolationMode.BILINEAR)
         if aug == 8:
             angle = -angle
-            TF.rotate(input.flip(-2), -angle, interpolation=Image.Resampling.BILINEAR)
+            TF.rotate(input.flip(-2), -angle, interpolation=transforms.InterpolationMode.BILINEAR)
     return input, aug, angle
 
 def inverse_similarity_transform(input:torch.Tensor, aug:int, angle:float):
@@ -136,11 +138,11 @@ def inverse_similarity_transform(input:torch.Tensor, aug:int, angle:float):
     elif aug == 2:
         input = input.flip(-2)
     else:
-        input = TF.rotate(input, -angle)
+        input = TF.rotate(input, -angle, transforms.InterpolationMode.BILINEAR)
         if aug in [5,6]:
             input = input.flip(-1)
         if aug in [7, 8]:
             input = input.flip(-2)
        
-    return input, aug, angle
+    return input
 

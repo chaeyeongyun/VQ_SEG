@@ -57,7 +57,8 @@ class BaseDataset(Dataset):
         if target is None:
             return {'filename':filename, 'img':img}
         return {'filename':filename, 'img':img, 'target':target}
-        
+
+
 
 class FolderDataset(Dataset):
     def __init__(self, data_dir, resize):
