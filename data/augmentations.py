@@ -104,7 +104,7 @@ class CutOut():
 
         
 def random_similarity_transform(input:torch.Tensor):
-    aug = random.randint(0, 8)
+    aug = random.randint(0, 9)
     angle = .0
     if aug == 1:
         input = input.flip(-1)
@@ -115,22 +115,32 @@ def random_similarity_transform(input:torch.Tensor):
         angle = rand_rot.get_params([.0, 90.0])
         if aug == 3:
             TF.rotate(input, angle, interpolation=Image.Resampling.BILINEAR)
-    return input, aug
+        if aug == 4:
+            angle = -angle
+            TF.rotate(input, -angle, interpolation=Image.Resampling.BILINEAR)
+        if aug == 5:
+            TF.rotate(input.flip(-1), angle, interpolation=Image.Resampling.BILINEAR)
+        if aug == 6:
+            angle = -angle
+            TF.rotate(input.flip(-1), -angle, interpolation=Image.Resampling.BILINEAR)
+        if aug == 7:
+            TF.rotate(input.flip(-2), angle, interpolation=Image.Resampling.BILINEAR)
+        if aug == 8:
+            angle = -angle
+            TF.rotate(input.flip(-2), -angle, interpolation=Image.Resampling.BILINEAR)
+    return input, aug, angle
 
-def inverse_similarity_transform(input:torch.Tensor, aug_num:int):
-    if aug_num == 1:
+def inverse_similarity_transform(input:torch.Tensor, aug:int, angle:float):
+    if aug == 1:
         input = input.flip(-1)
-    elif aug_num == 2:
+    elif aug == 2:
         input = input.flip(-2)
-    elif aug_num == 3:
-        input = torch.rot90(input,dims=(-1,-2), k=3)
-    elif aug_num == 4:
-        input = torch.rot90(input,dims=(-1,-2), k=2)
-    elif aug_num == 5:
-        input = torch.rot90(input,dims=(-1,-2), k=1)
-    elif aug_num == 6:
-        input = torch.rot90(input, dims=(-1,-2), k=3).flip(-1)
-    elif aug_num == 7:
-        input = torch.rot90(input, dims=(-1,-2), k=3).flip(-2)
-    return input
+    else:
+        input = TF.rotate(input, -angle)
+        if aug in [5,6]:
+            input = input.flip(-1)
+        if aug in [7, 8]:
+            input = input.flip(-2)
+       
+    return input, aug, angle
 
