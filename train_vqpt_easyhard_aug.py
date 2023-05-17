@@ -62,8 +62,9 @@ def train(cfg):
         models.init_weight([model_2.decoder, model_2.segmentation_head], nn.init.kaiming_normal_,
                         nn.BatchNorm2d, cfg.train.bn_eps, cfg.train.bn_momentum, 
                         mode='fan_in', nonlinearity='relu')
-    criterion = make_loss(cfg.train.criterion, num_classes, ignore_index=255)
-    
+    # criterion = make_loss(cfg.train.criterion, num_classes, ignore_index=255)
+    ####### experiment #######
+    criterion = nn.CrossEntropyLoss(torch.Tensor([0.5, 1., 1.]).to(device))
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
     unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled',  batch_size=batch_size, resize=cfg.resize)
     
@@ -249,6 +250,8 @@ if __name__ == "__main__":
     # cfg.wandb_logging = False
     # cfg.train.half=False
     cfg.resize = 448
-    train(cfg)
-    cfg.train.decoder_lr_times = 10
+    # train(cfg)
+    # cfg.train.decoder_lr_times = 10
+    # train(cfg)
+    cfg.train.criterion = 'cross_entropy'
     train(cfg)

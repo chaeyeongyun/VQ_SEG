@@ -228,7 +228,12 @@ class VQPTUnet(nn.Module):
         codebook_weights = torch.load(codebook_weights_path)
         self.encoder.load_state_dict(encoder_weights)
         self.codebook.load_state_dict(codebook_weights)
-   
+    def get_all_modules(self):
+        return {"encoder":self.encoder, 
+                "decoder":self.decoder, 
+                "seg_head":self.segmentation_head, 
+                "codebook":self.codebook, 
+                "prototype_loss":self.prototype_loss}
     
 
 class VQEuPTUnet(nn.Module):
