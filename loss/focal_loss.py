@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 from utils.seg_tools import label_to_onehot
 
-def focal_loss(pred:torch.Tensor, target:torch.Tensor, alpha, gamma, num_classes, ignore_index=None, reduction="sum"):
+def focal_loss(pred:torch.Tensor, target:torch.Tensor, alpha, gamma, num_classes=3, ignore_index=None, reduction="sum", weights:torch.Tensor=None):
     assert pred.shape[0] == target.shape[0],\
         "pred tensor and target tensor must have same batch size"
     
@@ -38,14 +38,14 @@ def focal_loss(pred:torch.Tensor, target:torch.Tensor, alpha, gamma, num_classes
     
 
 class FocalLoss(nn.Module):
-    def __init__(self, num_classes, alpha=0.25, gamma=2, ignore_index=None, reduction='sum'):
+    def __init__(self, num_classes, alpha=0.25, gamma=2, ignore_index=None, reduction='sum', weights:torch.Tensor=None):
         super().__init__()
         self.num_classes = num_classes
         self.ignore_index = ignore_index
         self.alpha = alpha
         self.gamma = gamma
         self.reduction = reduction
-    
+        self.weights = weights
     def forward(self, pred, target):
         if self.num_classes == 1:
             pred = F.sigmoid(pred)

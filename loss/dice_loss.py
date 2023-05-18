@@ -27,15 +27,16 @@ def dice_coefficient(pred:torch.Tensor, target:torch.Tensor, num_classes:int):
     return dice_coefficient
         
         
-def dice_loss(pred, target, num_classes, weights:tuple=None, ignore_index=None):
-    if not isinstance(pred, torch.Tensor) :
-        raise TypeError(f"Input type is not a torch.Tensor. Got {type(pred)}")
+def dice_loss(pred:torch.Tensor, target:torch.Tensor, num_classes:int=3, weight:torch.Tensor=None, ignore_index:int=-100):
 
     dice = dice_coefficient(pred, target, num_classes)
-    if weights is not None:
+    
+    if ignore_index>=0 and ignore_index<num_classes:
+        dice[ignore_index] = 0
+    
+    if weight is not None:
         dice_loss = 1-dice
-        weights = torch.Tensor(weights)
-        dice_loss = dice_loss * weights
+        dice_loss = dice_loss * weight
         dice_loss = dice_loss.mean()
         
     else: 
@@ -45,12 +46,12 @@ def dice_loss(pred, target, num_classes, weights:tuple=None, ignore_index=None):
     return dice_loss
 
 class DiceLoss(nn.Module):
-    def __init__(self, num_classes, weights:tuple=None, ignore_index=None):
+    def __init__(self, num_classes, weight:torch.Tensor=None, ignore_index=None):
         super().__init__()
         self.num_classes = num_classes
-        self.weights = weights
+        self.weight = weight
         self.ignore_index = ignore_index
     def forward(self, pred, target):
-        return dice_loss(pred, target, self.num_classes, weights=self.weights, ignore_index=self.ignore_index)
+        return dice_loss(pred, target, self.num_classes, weight=self.weight, ignore_index=self.ignore_index)
 
  

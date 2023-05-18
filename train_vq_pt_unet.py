@@ -1,3 +1,4 @@
+
 import argparse
 import matplotlib.pyplot as plt
 import os
@@ -61,7 +62,9 @@ def train(cfg):
                         nn.BatchNorm2d, cfg.train.bn_eps, cfg.train.bn_momentum, 
                         mode='fan_in', nonlinearity='relu')
     
-    criterion = make_loss(cfg.train.criterion, num_classes, ignore_index=255)
+    weight=cfg.train.criterion.get('weight', None)
+    if weight is not None: weight = torch.tensor(weight).to(device)
+    criterion = make_loss(cfg.train.criterion.name, num_classes, ignore_index=cfg.train.criterion.get('ignore_index', -100), weight=weight)
     
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
     unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled',  batch_size=batch_size, resize=cfg.resize)
@@ -242,8 +245,8 @@ if __name__ == "__main__":
     # cfg.train.half=False
     cfg.resize = 448
     # train(cfg)
-    cfg.project_name = 'vq_pt_unet_CEloss'
-    cfg.train.criterion = 'cross_entropy'
+    cfg.project_name = 'vq_pt_unet_weighted_nll_loss'
+    cfg.train.criterion.name = 'nll_loss'
     train(cfg)
     # cfg.model.params.pop("encoder_weights")
     # train(cfg)
