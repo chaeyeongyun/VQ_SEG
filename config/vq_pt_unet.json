@@ -29,12 +29,12 @@
         "data_dir":"../data/semi_sup_data/CWFID/num30",
         "save_dir":"../drive/MyDrive/semi_sup_train/CWFID",
         "device":0,
-        "num_epochs":200,
+        "num_epochs":400,
         "batch_size":4,
         "learning_rate":1e-4,
         "lr_scheduler":{
             "name":"cosineannealing",
-            "min_lr":1e-8,
+            "min_lr":1e-7,
             "warmup_steps":0
         },
         "half":true,
