@@ -72,8 +72,9 @@ def test(test_loader, model, measurement:Measurement, cfg):
         with torch.no_grad():
             pred = model(input_img)[0]
         crf = DenseCRF()
-        pred = crf(input_img[0], pred[0]) # cpu
+        pred = crf(input_img[0].detach().cpu(), pred[0].detach().cpu()) # cpu
         miou, _ = measurement.miou(measurement._make_confusion_matrix(np.expand_dims(pred, 0), mask_cpu))
+        miou, _ = measurement.miou(measurement._make_confusion_matrix(pred.detach().cpu().numpy(), mask_cpu))
         sum_miou += miou
     miou = sum_miou / len(test_loader)
     print(f'test miou : {miou}')
@@ -313,10 +314,9 @@ if __name__ == "__main__":
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     # cfg.train.half=False
-    # cfg.resize = 64
-    # cfg.train.batch_size=1
+    cfg.resize = 448
     # train(cfg)
-    cfg.project_name = 'vq_pt_unet_weighted_ce_loss'
+    cfg.project_name = 'VQPT+CRF'
     cfg.train.criterion.name = 'cross_entropy'
     cfg.train.criterion.weight = [0.5, 0.8, 1.0]
     train(cfg)

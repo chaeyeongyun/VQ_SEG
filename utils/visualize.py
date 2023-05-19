@@ -131,6 +131,16 @@ def make_example_img_slic(l_input:np.ndarray, target:np.ndarray, pred:np.ndarray
     if resize_factor is not None:
         cat_img = cv2.resize(cat_img, dsize=(0,0), fx=resize_factor, fy=resize_factor, interpolation=cv2.INTER_LINEAR)
     return cat_img
+
+def make_test_img(input_array:np.ndarray, pred_array:np.ndarray, target_array:np.ndarray):
+    input_array = input_array[0] if input_array.ndim==4 else input_array
+    pred_array = pred_array[0] if pred_array.ndim==4 else pred_array
+    target_array = target_array[0] if target_array.ndim==4 else target_array
+    input_array, pred_array, target_array = [i.transpose(1, 2, 0) for i in [input_array, pred_array, target_array]]
+    zeros = np.zeros(input_array.shape[0], 20, 3)
+    img = np.concatenate((input_array, zeros, pred_array, zeros, target_array), axis=1)
+    return img
+    
 def save_img(img_dir:str, filename:str, img:np.ndarray):
     plt.imsave(os.path.join(img_dir, filename), img)
 
