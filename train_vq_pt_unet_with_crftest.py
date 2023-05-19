@@ -43,8 +43,9 @@ class DenseCRF():
     def __call__(self, image, prob_map):
         C, H, W = prob_map.shape
         
-        image = image.permute((1, 2, 0))
-        prob_map = prob_map.cpu().numpy()
+        image = image.permute((1, 2, 0)).detach().cpu().numpy()
+        image = (image*255).astype(np.ubyte)
+        prob_map = prob_map.detach().cpu().numpy()
         
         U = pydensecrf.utils.unary_from_softmax(prob_map)
         U = np.ascontiguousarray(U)
@@ -72,7 +73,7 @@ def test(test_loader, model, measurement:Measurement, cfg):
             pred = model(input_img)[0]
         crf = DenseCRF()
         pred = crf(input_img[0], pred[0]) # cpu
-        miou, _ = measurement.miou(measurement._make_confusion_matrix(pred, mask_cpu))
+        miou, _ = measurement.miou(measurement._make_confusion_matrix(np.expand_dims(pred, 0), mask_cpu))
         sum_miou += miou
     miou = sum_miou / len(test_loader)
     print(f'test miou : {miou}')
@@ -309,11 +310,11 @@ if __name__ == "__main__":
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=512
-    cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     # cfg.train.half=False
-    cfg.resize = 32
-    cfg.train.batch_size=1
+    # cfg.resize = 64
+    # cfg.train.batch_size=1
     # train(cfg)
     cfg.project_name = 'vq_pt_unet_weighted_ce_loss'
     cfg.train.criterion.name = 'cross_entropy'
