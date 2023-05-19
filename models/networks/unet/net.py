@@ -157,7 +157,7 @@ class VQPTUnet(nn.Module):
         in_channels:int=3,
         decoder_channels=None,
         depth:int=5,
-        activation=nn.Softmax2d,
+        activation=nn.Identity,
         upsampling=2,
         ):
         super().__init__()

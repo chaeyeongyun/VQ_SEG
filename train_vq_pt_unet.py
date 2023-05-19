@@ -245,8 +245,9 @@ if __name__ == "__main__":
     # cfg.train.half=False
     cfg.resize = 448
     # train(cfg)
-    cfg.project_name = 'vq_pt_unet_weighted_nll_loss'
-    cfg.train.criterion.name = 'nll_loss'
+    cfg.project_name = 'vq_pt_unet_weighted_ce_loss'
+    cfg.train.criterion.name = 'cross_entropy'
+    cfg.train.criterion.weight = [0.5, 0.8, 1.0]
     train(cfg)
     # cfg.model.params.pop("encoder_weights")
     # train(cfg)

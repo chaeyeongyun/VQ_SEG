@@ -173,9 +173,9 @@ if __name__ == "__main__":
     #     test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    cfg = get_config_from_json('./config/cps_vqv2_kmeans_init.json')
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_kmeans_init48/ckpoints",
-           "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_kmeans_init49/ckpoints"]
+    cfg = get_config_from_json('./config/vq_pt_unet.json')
+    cfg.resize = 448
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/vq_pt_unet_weighted_ce_loss59/ckpoints"]
     
     for w in w_l:
         # debug
