@@ -74,7 +74,6 @@ def test(test_loader, model, measurement:Measurement, cfg):
         crf = DenseCRF()
         pred = crf(input_img[0].detach().cpu(), pred[0].detach().cpu()) # cpu
         miou, _ = measurement.miou(measurement._make_confusion_matrix(np.expand_dims(pred, 0), mask_cpu))
-        miou, _ = measurement.miou(measurement._make_confusion_matrix(pred.detach().cpu().numpy(), mask_cpu))
         sum_miou += miou
     miou = sum_miou / len(test_loader)
     print(f'test miou : {miou}')
@@ -310,15 +309,20 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    # cfg.resize=512
+    # cfg.resize=64
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     # cfg.train.half=False
     cfg.resize = 448
     # train(cfg)
     cfg.project_name = 'VQPT+CRF'
-    cfg.train.criterion.name = 'cross_entropy'
+    # cfg.train.criterion.name = 'cross_entropy'
+    # cfg.train.criterion.weight = [0.5, 0.8, 1.0]
+    cfg.train.criterion.name = 'focal_loss'
+    # cfg.train.criterion.weight = None
     cfg.train.criterion.weight = [0.5, 0.8, 1.0]
+    cfg.train.wandb_log.append('test_miou')
+    cfg.model.params.encoder_weights = "imagenet"
     train(cfg)
     # cfg.model.params.pop("encoder_weights")
     # train(cfg)

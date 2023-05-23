@@ -25,7 +25,20 @@ from data.dataset import BaseDataset
 
 from loss import make_loss
 from measurement import Measurement
-
+def test(test_loader, model, measurement:Measurement, cfg):
+    sum_miou = 0
+    for data in tqdm(test_loader):
+        input_img, mask_img, filename = data['img'], data['target'], data['filename']
+        input_img = input_img.to(model.device)
+        mask_cpu = img_to_label(mask_img, cfg.pixel_to_label).cpu().numpy()
+        model.eval()
+        with torch.no_grad():
+            pred = model(input_img)[0]
+        miou, _ = measurement.miou(measurement._make_confusion_matrix(pred.detach().cpu().numpy(), mask_cpu))
+        sum_miou += miou
+    miou = sum_miou / len(test_loader)
+    print(f'test miou : {miou}')
+    return miou
 # 일단 no cutmix version
 def train(cfg):
     seed_everything()
@@ -68,6 +81,10 @@ def train(cfg):
     
     sup_loader = DataLoader(sup_dataset, batch_size=batch_size, shuffle=True)
     unsup_loader = DataLoader(unsup_dataset, batch_size=batch_size, shuffle=True)
+    ##test##
+    test_dataset = BaseDataset(os.path.join(cfg.test.data_dir, 'test'), split='labelled', batch_size=1, resize=cfg.resize)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+    ###
     
     
     if cfg.train.lr_scheduler.name == 'warmuppoly':
@@ -87,6 +104,7 @@ def train(cfg):
     cps_loss_weight = cfg.train.cps_loss_weight
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
+    best_miou = 0
     for epoch in range(num_epochs):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
         crop_iou, weed_iou, back_iou = 0, 0, 0
@@ -180,6 +198,19 @@ def train(cfg):
         print_txt = f"[Epoch{epoch}]" \
                             + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
         print(print_txt)
+        test_miou = test(test_loader, model_1, measurement, cfg)
+        print(f"test_miou : {test_miou:.4f}")
+        if best_miou <= test_miou:
+            best_miou = test_miou
+            if logger is not None:
+                save_ckpoints(model_1.state_dict(),
+                            model_2.state_dict(),
+                            epoch,
+                            batch_idx,
+                            optimizer_1.state_dict(),
+                            optimizer_2.state_dict(),
+                            os.path.join(ckpoints_dir, f"best_test_miou.pth"))
+        
         if logger != None:
             log_txt.write(print_txt)
             params = [l_input, l_target, pred_sup_1, ul_input, pred_ul_1]
@@ -238,4 +269,5 @@ if __name__ == "__main__":
     # cfg.model.params.encoder_weights = "imagenet_swsl"
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
+    cfg.train.wandb_log.append('test_miou')
     train(cfg)

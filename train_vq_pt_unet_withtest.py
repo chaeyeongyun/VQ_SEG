@@ -278,9 +278,12 @@ if __name__ == "__main__":
     # cfg.train.half=False
     cfg.resize = 448
     # train(cfg)
-    cfg.project_name = 'vq_pt_unet_weighted_ce_loss'
-    cfg.train.criterion.name = 'cross_entropy'
+    cfg.project_name = 'vq_pt_unet_weighted_focal_loss'
+    cfg.train.criterion.name = 'focal_loss'
     cfg.train.criterion.weight = [0.5, 0.8, 1.0]
+    cfg.train.wandb_log.append('test_miou')
+    cfg.model.params.encoder_weights = "imagenet"
+    cfg.train.total_prototype_loss_weight = 0.001
     train(cfg)
     # cfg.model.params.pop("encoder_weights")
     # train(cfg)

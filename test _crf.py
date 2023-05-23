@@ -18,6 +18,7 @@ from utils.seg_tools import img_to_label
 from utils.logger import TestLogger, dict_to_table_log, make_img_table
 from measurement import Measurement
 import models
+from utils.crf import DenseCRF
 
 def make_filename(filename_list, insert):
     for i, filename in enumerate(filename_list):
@@ -99,10 +100,11 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
         with torch.no_grad():
             pred = model(input_img)[0]
         
-        pred = F.interpolate(pred, mask_img.shape[-2:], mode='bilinear')
-        pred_numpy, mask_numpy = pred.detach().cpu().numpy(), mask_cpu.cpu().numpy()
-        
-        acc_pixel, batch_miou, iou_ndarray, precision, recall, f1score = measurement(pred_numpy, mask_numpy) 
+        crf = DenseCRF()
+        pred = crf(input_img[0].detach().cpu(), pred[0].detach().cpu()) # cpu
+        pred = F.interpolate(torch.tensor(np.expand_dims(pred, 0)), mask_img.shape[-2:], mode='bilinear')
+        mask_numpy = mask_cpu.cpu().numpy()
+        acc_pixel, batch_miou, iou_ndarray, precision, recall, f1score = measurement(pred.cpu().numpy(), mask_numpy) 
         
         test_acc += acc_pixel
         test_miou += batch_miou
@@ -175,7 +177,7 @@ if __name__ == "__main__":
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
     cfg = get_config_from_json('./config/vq_pt_unet.json')
     cfg.resize = 448
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQPT+CRF70/ckpoints/"]
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQPT+CRF70/ckpoints/best_test_miou.pth"]
     
     for w in w_l:
         # debug

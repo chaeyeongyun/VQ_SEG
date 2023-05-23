@@ -113,5 +113,36 @@ class FC(nn.Sequential):
         layers = [nn.Linear(in_channels, in_channels//2),
                 nn.Linear(in_channels//2, in_channels)]
         super().__init__(*layers)
+### CCA ### contrast-aware channel attention module
+def nanstd(x): 
+    return torch.sqrt(torch.mean(torch.pow(x-torch.nanmean(x,dim=1).unsqueeze(-1),2)))
+class CCA(nn.Module):
+    def __init__(self, in_channels:int, out_channels:int) :
+        super().__init__()
+        self.mlp = nn.Sequential(nn.Conv2d(in_channels, in_channels//2, 1, bias=True),
+                                 nn.ReLU(),
+                                nn.Conv2d(in_channels//2, in_channels, 1, bias=True),
+                                )
         
-    
+        # self.conv = nn.Conv2d(in_channels, out_channels, 3, padding=1, bias=False) if out_channels != in_channels else nn.Identity()
+        self.conv = nn.Sequential(nn.Conv2d(in_channels, out_channels//2, 3, padding=1, bias=False),
+                                  nn.BatchNorm2d(out_channels//2),
+                                  nn.ReLU(),
+                                  nn.Conv2d(out_channels//2, out_channels, 3, padding=1, bias=False),
+                                  nn.BatchNorm2d(out_channels),
+                                  nn.ReLU(),
+                                  )
+    def forward(self, x):
+        mean = torch.nanmean(x, dim=(2, 3), keepdim=True) # (B, C, 1, 1)
+        # std = torch.std(x, dim=(2, 3), keepdim=True) # (B, C, 1, 1)
+        std = torch.sqrt(torch.nanmean((x-mean).pow(2), dim=(2, 3), keepdim=True))
+        weight = mean + std
+        weight = self.mlp(weight)
+        weight = torch.sigmoid(weight)
+        output = x * weight
+        output = self.conv(output)
+        return output
+        
+        
+        
+
