@@ -73,8 +73,9 @@ def train(cfg):
         models.init_weight([model_2.decoder, model_2.segmentation_head], nn.init.kaiming_normal_,
                         nn.BatchNorm2d, cfg.train.bn_eps, cfg.train.bn_momentum, 
                         mode='fan_in', nonlinearity='relu')
-    
-    criterion = make_loss(cfg.train.criterion, num_classes, ignore_index=255)
+    loss_weight = cfg.train.criterion.get("weight", None)
+    loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
+    criterion = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight)
     
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
     unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled',  batch_size=batch_size, resize=cfg.resize)
@@ -252,7 +253,7 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqcanet.json')
+    parser.add_argument('--config_path', default='./config/vqcanetv2.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
@@ -270,4 +271,5 @@ if __name__ == "__main__":
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
     cfg.train.wandb_log.append('test_miou')
+    
     train(cfg)

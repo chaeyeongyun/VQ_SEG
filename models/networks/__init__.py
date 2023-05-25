@@ -14,7 +14,8 @@ network_dict = {
     "VQUnetwithSalientloss":VQUnetwithSalientloss,
     "drsavqunet":DRSAVQUnet,
     "vqashunetv2":VQASHUnetv2,
-    "vqcanet":VQCANet
+    "vqcanet":VQCANet, 
+     "vqcanetv2":VQCANetv2
 }
 
 def make_model(model_cfg:dict):

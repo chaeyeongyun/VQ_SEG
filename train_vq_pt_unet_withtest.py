@@ -93,9 +93,9 @@ def train(cfg):
     
     if cfg.train.lr_scheduler.name == 'warmuppoly':
         lr_sched_cfg = cfg.train.lr_scheduler
-        lr_scheduler = WarmUpPolyLR(cfg.train.learning_rate, lr_power=cfg.lr_sched_cfg.lr_power, 
+        lr_scheduler = WarmUpPolyLR(lr_sched_cfg, lr_power=lr_sched_cfg.lr_power, 
                                     total_iters=len(unsup_loader)*num_epochs,
-                                    warmup_steps=len(unsup_loader)*cfg.lr_sched_cfg.warmup_epoch)
+                                    warmup_steps=len(unsup_loader)*lr_sched_cfg.warmup_epoch)
     elif cfg.train.lr_scheduler.name == 'cosineannealing':
         lr_sched_cfg = cfg.train.lr_scheduler
         lr_scheduler = CosineAnnealingLR(start_lr = cfg.train.learning_rate, min_lr=lr_sched_cfg.min_lr, total_iters=len(unsup_loader)*num_epochs, warmup_steps=lr_sched_cfg.warmup_steps)

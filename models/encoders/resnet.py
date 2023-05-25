@@ -1,9 +1,12 @@
+from typing import List
 import torch
 from torch import nn
 import numpy as np
 from torch.hub import load_state_dict_from_url
 import torch.nn.functional as F
 from torchvision.models.resnet import ResNet, BasicBlock, Bottleneck
+
+from ..modules.attention import CCA
 
 
 resnet_encoders = {
@@ -173,3 +176,82 @@ class ResNetEncoder(ResNet):
         """Return channels dimensions for each tensor of forward output of encoder"""
         return self._out_channels[: self._depth + 1]
 
+class CCAResNetEncoder(ResNet):
+    '''for unet'''
+    def __init__(self, out_channels, depth=5, in_channels=3, padding_mode='zeros', cca:List=[False, False, True, True, True], **kwargs):
+        super().__init__(**kwargs)
+        assert len(cca) == depth, "the length of cca list must be same with depth"
+        self._depth = depth
+        self._out_channels = out_channels
+        self._in_channels = in_channels
+        if self._in_channels != 3:
+            self.conv1 = nn.Conv2d(self._in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False, padding_mode=padding_mode)
+        else:
+            self.conv1 = nn.Conv2d(self._in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False, padding_mode=padding_mode)
+        del self.fc
+        del self.avgpool
+        if padding_mode != 'zeros':
+            assert padding_mode in ['reflect', 'replicate', 'circular'], f"padding_mode {padding_mode} is not available"
+            self._change_padding_mode(padding_mode)
+        cca_in_channels = out_channels[1:]
+        self.cca_list = nn.ModuleList([CCA(in_channels = cca_in_channels[i], out_channels=cca_in_channels[i]) if cca[i] else nn.Identity() \
+                                                            for i in range(depth)])
+        
+            
+    def _change_padding_mode(self, padding_mode):
+        for name, child in self.named_children():
+            if isinstance(child, nn.Conv2d):
+                self._modules[name].padding_mode = padding_mode
+            elif isinstance(child, nn.Sequential):
+                for sname, schild in child.named_children():
+                    if isinstance(schild, nn.Conv2d):
+                        # print(name,sname)
+                        self._modules[name]._modules[sname].padding_mode = padding_mode
+                    if isinstance(schild, Bottleneck):
+                        # print(name,sname)
+                        for bname, bchild in schild.named_children():
+                            if isinstance(bchild, nn.Conv2d):
+                                # print(name,sname, bname)
+                                self._modules[name]._modules[sname]._modules[bname].padding_mode = padding_mode
+
+    def get_stages(self):
+        '''
+        input size (2, 3, 512, 512)일 때
+        output
+        
+        [
+        torch.Size([2, 3, 512, 512])
+        torch.Size([2, 64, 256, 256])
+        torch.Size([2, 256, 128, 128])
+        torch.Size([2, 512, 64, 64])
+        torch.Size([2, 1024, 32, 32])
+        torch.Size([2, 2048, 16, 16])
+        ]
+        '''
+        return [
+            nn.Identity(),
+            nn.Sequential(self.conv1, self.bn1, self.relu, self.cca_list[0]),
+            nn.Sequential(self.maxpool, self.layer1, self.cca_list[1]),
+            nn.Sequential(self.layer2, self.cca_list[2]),
+            nn.Sequential(self.layer3, self.cca_list[3]),
+            nn.Sequential(self.layer4, self.cca_list[4]),
+        ]
+
+    def forward(self, x):
+        stages = self.get_stages()
+
+        features = []
+        for i in range(self._depth + 1):
+            x = stages[i](x)
+            features.append(x)
+
+        return features
+
+    def load_state_dict(self, state_dict, **kwargs):
+        state_dict.pop("fc.bias", None)
+        state_dict.pop("fc.weight", None)
+        super().load_state_dict(state_dict, strict=False, **kwargs)
+    
+    def out_channels(self):
+        """Return channels dimensions for each tensor of forward output of encoder"""
+        return self._out_channels[: self._depth + 1]

@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQCANet",
+    "project_name":"VQCANetv2",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{
@@ -9,9 +9,9 @@
     },
     "resize":512,
     "model":{
-        "name":"vqcanet",
+        "name":"vqcanetv2",
         "params":{
-            "encoder_name":"resnet50",
+            "encoder_name":"ccaresnet50",
             "num_classes":3,
             "depth": 5,
             "vq_cfg":{
@@ -19,7 +19,8 @@
                 "distance":"euclidean",
                 "kmeans_init": true
                 },
-            "encoder_weights":"imagenet_swsl"
+            "encoder_weights":"imagenet_swsl",
+            "cca" :[false, false, false, true, true]
             }
         },
     "train":{
@@ -39,8 +40,7 @@
         "bn_eps":1e-5,
         "bn_momentum":0.1,
         "criterion":{
-            "name":"dice_loss",
-            "weight":[0.5, 1.0, 1.0]
+            "name":"dice_loss"
         },
         "cps_loss_weight":1,
         "total_commitment_loss_weight":1,

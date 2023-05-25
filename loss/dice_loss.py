@@ -30,15 +30,18 @@ def dice_coefficient(pred:torch.Tensor, target:torch.Tensor, num_classes:int):
 def dice_loss(pred:torch.Tensor, target:torch.Tensor, num_classes:int=3, weight:torch.Tensor=None, ignore_index:int=-100):
 
     dice = dice_coefficient(pred, target, num_classes)
-    
     if ignore_index>=0 and ignore_index<num_classes:
         dice[ignore_index] = 0
     
     if weight is not None:
+        weight = weight.to(pred.device)
         dice_loss = 1-dice
-        dice_loss = dice_loss * weight
-        dice_loss = dice_loss.mean()
-        
+        dice_loss = dice_loss * weight / torch.sum(weight) 
+        dice_loss = torch.sum(dice_loss) / num_classes
+        # dice = dice * weight
+        # dice = dice / torch.sum(weight)
+        # dice_loss = dice_loss.mean()
+        # dice_loss = 1-dice
     else: 
         dice = dice.mean()
         dice_loss = 1 - dice
