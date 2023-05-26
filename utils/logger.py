@@ -84,7 +84,7 @@ class Logger(BaseLogger):
             
 class TestLogger(BaseLogger):
     def __init__(self, cfg, logger_name):
-        wandb.init(project=cfg.project_name+"_test",
+        wandb.init(project="Test",
                    name=logger_name
                 #    notes="baseline",
                 #    tags = ["csp+unet+cutmix"]
