@@ -29,8 +29,7 @@ class VQCANetv3(nn.Module):
                                     encoder_name, 
                                     in_channels, 
                                     depth, 
-                                    weights=encoder_weights, 
-                                    cca=cca)    
+                                    weights=encoder_weights)    
         encoder_channels = self.encoder.out_channels()
         
         self.codebook = make_vq_module(vq_cfg, encoder_channels, depth)

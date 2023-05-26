@@ -38,7 +38,7 @@ def test(cfg):
     
     model = models.networks.make_model(cfg.model).to(device)
     # logger_name = (cfg.model.name+"_"+model.encoder.__class__.__name__+"_"+model.decoder.__class__.__name__+"_"+str(len(os.listdir(cfg.test.save_dir))))
-    logger_name =  cfg.test.weight.split('/')
+    logger_name =  cfg.test.weights.split('/')
     logger_name = logger_name[logger_name.index('ckpoints')-1]
     # make save folders
     save_dir = os.path.join(cfg.test.save_dir, logger_name)
@@ -175,9 +175,9 @@ if __name__ == "__main__":
     #     test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    cfg = get_config_from_json('./config/vqcanet.json')
+    cfg = get_config_from_json('./config/vqcanetv2.json')
     # cfg.resize = 448
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQCANet83/ckpoints/"]
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQCANetv28/ckpoints/best_test_miou.pth"]
     
     for w in w_l:
         # debug

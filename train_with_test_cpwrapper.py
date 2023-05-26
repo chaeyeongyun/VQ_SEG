@@ -25,11 +25,27 @@ from data.dataset import BaseDataset
 
 from loss import make_loss
 from measurement import Measurement
+
+from torch.utils.checkpoint import checkpoint
+
+class CheckpointWrapper(nn.Module):
+    def __init__(self, module):
+        super(CheckpointWrapper, self).__init__()
+        self.module = module
+
+    def forward(self, *inputs):
+        # Define a function to be checkpointed
+        def run_module(*inputs):
+            return self.module(*inputs)
+
+        # Use checkpoint to compute the forward pass
+        return checkpoint(run_module, *inputs)
+    
 def test(test_loader, model, measurement:Measurement, cfg):
     sum_miou = 0
     for data in tqdm(test_loader):
         input_img, mask_img, filename = data['img'], data['target'], data['filename']
-        input_img = input_img.to(model.device)
+        input_img = input_img.to(list(model.parameters())[0].device)
         mask_cpu = img_to_label(mask_img, cfg.pixel_to_label).cpu().numpy()
         model.eval()
         with torch.no_grad():
@@ -64,7 +80,6 @@ def train(cfg):
     
     model_1 = models.networks.make_model(cfg.model).to(device)
     model_2 = models.networks.make_model(cfg.model).to(device)
-    
     # initialize differently (segmentation head)
     if cfg.train.init_weights:
         models.init_weight([model_1.decoder, model_1.segmentation_head], nn.init.kaiming_normal_,
@@ -73,6 +88,9 @@ def train(cfg):
         models.init_weight([model_2.decoder, model_2.segmentation_head], nn.init.kaiming_normal_,
                         nn.BatchNorm2d, cfg.train.bn_eps, cfg.train.bn_momentum, 
                         mode='fan_in', nonlinearity='relu')
+    
+    model_1, model_2 = CheckpointWrapper(model_1), CheckpointWrapper(model_2)
+    
     loss_weight = cfg.train.criterion.get("weight", None)
     loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
     criterion = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight)
@@ -126,7 +144,9 @@ def train(cfg):
             l_input = l_input.to(device)
             l_target = l_target.to(device)
             ul_input = ul_input.to(device)
-     
+
+            l_input.requires_grad = True
+            ul_input.requires_grad = True
             with torch.cuda.amp.autocast(enabled=half):
                 pred_sup_1, commitment_loss_l1, code_usage_l1 = model_1(l_input)
                 pred_sup_2, commitment_loss_l2, code_usage_l2 = model_2(l_input)
@@ -180,7 +200,7 @@ def train(cfg):
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
-                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
+                            + f"miou={step_miou}, sup_loss_1={sup_loss_1.item():.4f}, sup_loss_2={sup_loss_2.item():.4f}, cps_loss={cps_loss.item():.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
@@ -204,12 +224,12 @@ def train(cfg):
         if best_miou <= test_miou:
             best_miou = test_miou
             if logger is not None:
-                save_ckpoints(model_1.state_dict(),
-                            model_2.state_dict(),
+                save_ckpoints(model_1.cpu().state_dict(),
+                            model_2.cpu().state_dict(),
                             epoch,
                             batch_idx,
-                            optimizer_1.state_dict(),
-                            optimizer_2.state_dict(),
+                            optimizer_1.cpu().state_dict(),
+                            optimizer_2.cpu().state_dict(),
                             os.path.join(ckpoints_dir, f"best_test_miou.pth"))
         
         if logger != None:
@@ -221,19 +241,19 @@ def train(cfg):
             if cfg.train.save_img:
                 save_img(img_dir, f'output_{epoch}ep.png', example)
             if epoch % 10 == 0:
-                save_ckpoints(model_1.state_dict(),
-                            model_2.state_dict(),
+                save_ckpoints(model_1.cpu().state_dict(),
+                            model_2.cpu().state_dict(),
                             epoch,
                             batch_idx,
-                            optimizer_1.state_dict(),
-                            optimizer_2.state_dict(),
+                            optimizer_1.cpu().state_dict(),
+                            optimizer_2.cpu().state_dict(),
                             os.path.join(ckpoints_dir, f"{epoch}ep.pth"))
-            save_ckpoints(model_1.state_dict(),
-                        model_2.state_dict(),
+            save_ckpoints(model_1.cpu().state_dict(),
+                        model_2.cpu().state_dict(),
                         epoch,
                         batch_idx,
-                        optimizer_1.state_dict(),
-                        optimizer_2.state_dict(),
+                        optimizer_1.cpu().state_dict(),
+                        optimizer_2.cpu().state_dict(),
                         os.path.join(ckpoints_dir, f"last.pth"))
             # wandb logging
             for key in logger.config_dict.keys():
@@ -259,7 +279,7 @@ if __name__ == "__main__":
     # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
-    # cfg.wandb_logging = False
+    cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
@@ -270,6 +290,6 @@ if __name__ == "__main__":
     # cfg.model.params.encoder_weights = "imagenet_swsl"
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
-    cfg.train.wandb_log.append('test_miou')
+    # cfg.train.wandb_log.append('test_miou')
     
     train(cfg)
