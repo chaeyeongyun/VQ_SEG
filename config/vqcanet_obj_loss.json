@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQCANet",
+    "project_name":"VQCANet_obj_loss",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{
@@ -43,12 +43,13 @@
         },
         "cps_loss_weight":1,
         "total_commitment_loss_weight":1,
+        "obj_loss_weight":1,
         "resume":null,
         "save_img":true,
         "save_txt":true,
         "save_as_tar":false,
         "wandb_config":["batch_size", "num_epochs"],
-        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "cps_loss", "commitment_loss", "crop_iou", "weed_iou", "back_iou"],
+        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "obj_loss", "cps_loss", "commitment_loss", "crop_iou", "weed_iou", "back_iou"],
         "wandb_metrics":["loss", "miou"] 
     },
     "test":{

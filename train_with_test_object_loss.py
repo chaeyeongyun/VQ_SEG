@@ -26,26 +26,21 @@ from data.dataset import BaseDataset
 from loss import make_loss
 from measurement import Measurement
 
-from torch.utils.checkpoint import checkpoint
+def pred_to_obj_pred(pred):
+    obj_pred = torch.softmax(pred, dim=1)
+    obj_pred[:, 0, :, :] = 0
+    obj_pred = torch.sum(obj_pred, dim=1)
+    return obj_pred
 
-class CheckpointWrapper(nn.Module):
-    def __init__(self, module):
-        super(CheckpointWrapper, self).__init__()
-        self.module = module
+def target_to_obj_target(target):
+    obj_target = torch.where(target!=0, 1, target)
+    return obj_target
 
-    def forward(self, *inputs):
-        # Define a function to be checkpointed
-        def run_module(*inputs):
-            return self.module(*inputs)
-
-        # Use checkpoint to compute the forward pass
-        return checkpoint(run_module, *inputs)
-    
 def test(test_loader, model, measurement:Measurement, cfg):
     sum_miou = 0
     for data in tqdm(test_loader):
         input_img, mask_img, filename = data['img'], data['target'], data['filename']
-        input_img = input_img.to(list(model.parameters())[0].device)
+        input_img = input_img.to(model.device)
         mask_cpu = img_to_label(mask_img, cfg.pixel_to_label).cpu().numpy()
         model.eval()
         with torch.no_grad():
@@ -80,6 +75,7 @@ def train(cfg):
     
     model_1 = models.networks.make_model(cfg.model).to(device)
     model_2 = models.networks.make_model(cfg.model).to(device)
+    
     # initialize differently (segmentation head)
     if cfg.train.init_weights:
         models.init_weight([model_1.decoder, model_1.segmentation_head], nn.init.kaiming_normal_,
@@ -88,12 +84,10 @@ def train(cfg):
         models.init_weight([model_2.decoder, model_2.segmentation_head], nn.init.kaiming_normal_,
                         nn.BatchNorm2d, cfg.train.bn_eps, cfg.train.bn_momentum, 
                         mode='fan_in', nonlinearity='relu')
-    
-    model_1, model_2 = CheckpointWrapper(model_1), CheckpointWrapper(model_2)
-    
     loss_weight = cfg.train.criterion.get("weight", None)
     loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
     criterion = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight)
+    object_criterion = make_loss(cfg.train.criterion.name, num_classes=1)
     
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
     unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled',  batch_size=batch_size, resize=cfg.resize)
@@ -121,6 +115,7 @@ def train(cfg):
     
     # progress bar
     cps_loss_weight = cfg.train.cps_loss_weight
+    obj_loss_weight = cfg.train.obj_loss_weight
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
     best_miou = 0
@@ -129,6 +124,7 @@ def train(cfg):
         crop_iou, weed_iou, back_iou = 0, 0, 0
         sum_cps_loss, sum_sup_loss_1, sum_sup_loss_2 = 0, 0, 0
         sum_commitment_loss = 0
+        sum_obj_loss = 0
         sum_loss = 0
         sum_miou = 0
         ep_start = time.time()
@@ -144,9 +140,7 @@ def train(cfg):
             l_input = l_input.to(device)
             l_target = l_target.to(device)
             ul_input = ul_input.to(device)
-
-            l_input.requires_grad = True
-            ul_input.requires_grad = True
+     
             with torch.cuda.amp.autocast(enabled=half):
                 pred_sup_1, commitment_loss_l1, code_usage_l1 = model_1(l_input)
                 pred_sup_2, commitment_loss_l2, code_usage_l2 = model_2(l_input)
@@ -170,7 +164,12 @@ def train(cfg):
                 sup_loss_1 = criterion(pred_sup_1, l_target)
                 sup_loss_2 = criterion(pred_sup_2, l_target)
                 sup_loss = sup_loss_1 + sup_loss_2
-                
+                ##  object loss
+                obj_pred_1 = pred_to_obj_pred(pred_1)
+                obj_pred_2 = pred_to_obj_pred(pred_2)
+                obj_target_1 = torch.cat([l_target, pseudo_1[-batch_size:]], dim=0)
+                obj_target_2 = torch.cat([l_target, pseudo_2[-batch_size:]], dim=0)
+                obj_loss = object_criterion(obj_pred_1, obj_target_2) + object_criterion(obj_pred_2, obj_target_1)
                 commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
                 
                 ## learning rate update
@@ -180,7 +179,7 @@ def train(cfg):
                 optimizer_1.param_groups[0]['lr'] = learning_rate
                 optimizer_2.param_groups[0]['lr'] = learning_rate
                 
-                loss = sup_loss + cps_loss_weight*cps_loss + total_commitment_loss_weight*commitment_loss
+                loss = sup_loss + cps_loss_weight*cps_loss + total_commitment_loss_weight*commitment_loss +obj_loss_weight*obj_loss
                 sum_code_usage += (code_usage_l1 + code_usage_l2 + code_usage_ul1 + code_usage_ul2) / 4 
                 
             scaler.scale(loss).backward()
@@ -196,11 +195,12 @@ def train(cfg):
             sum_sup_loss_1 += sup_loss_1.item()
             sum_sup_loss_2 += sup_loss_2.item()
             sum_commitment_loss += commitment_loss.item()
+            sum_obj_loss += obj_loss.item()
             back_iou += iou_list[0]
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
-                            + f"miou={step_miou}, sup_loss_1={sup_loss_1.item():.4f}, sup_loss_2={sup_loss_2.item():.4f}, cps_loss={cps_loss.item():.4f}"
+                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
@@ -213,6 +213,7 @@ def train(cfg):
         sup_loss_1 = sum_sup_loss_1 / len(unsup_loader)
         sup_loss_2 = sum_sup_loss_2 / len(unsup_loader)
         commitment_loss = sum_commitment_loss / len(unsup_loader)
+        obj_loss = sum_obj_loss / len(unsup_loader)
         loss = sum_loss / len(unsup_loader)
         miou = sum_miou / len(unsup_loader)
         
@@ -224,8 +225,8 @@ def train(cfg):
         if best_miou <= test_miou:
             best_miou = test_miou
             if logger is not None:
-                save_ckpoints(model_1.cpu().state_dict(),
-                            model_2.cpu().state_dict(),
+                save_ckpoints(model_1.state_dict(),
+                            model_2.state_dict(),
                             epoch,
                             batch_idx,
                             optimizer_1.state_dict(),
@@ -241,15 +242,15 @@ def train(cfg):
             if cfg.train.save_img:
                 save_img(img_dir, f'output_{epoch}ep.png', example)
             if epoch % 10 == 0:
-                save_ckpoints(model_1.cpu().state_dict(),
-                            model_2.cpu().state_dict(),
+                save_ckpoints(model_1.state_dict(),
+                            model_2.state_dict(),
                             epoch,
                             batch_idx,
                             optimizer_1.state_dict(),
                             optimizer_2.state_dict(),
                             os.path.join(ckpoints_dir, f"{epoch}ep.pth"))
-            save_ckpoints(model_1.cpu().state_dict(),
-                        model_2.cpu().state_dict(),
+            save_ckpoints(model_1.state_dict(),
+                        model_2.state_dict(),
                         epoch,
                         batch_idx,
                         optimizer_1.state_dict(),
@@ -273,7 +274,7 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqcanetv4.json')
+    parser.add_argument('--config_path', default='./config/vqcanet_obj_loss.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
@@ -290,6 +291,6 @@ if __name__ == "__main__":
     # cfg.model.params.encoder_weights = "imagenet_swsl"
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
-    # cfg.train.wandb_log.append('test_miou')
-    
+    cfg.train.wandb_log.append('test_miou')
+    # TODO: debugging
     train(cfg)

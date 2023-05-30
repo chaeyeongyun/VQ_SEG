@@ -125,13 +125,14 @@ class CCA(nn.Module):
                                 )
         
         # self.conv = nn.Conv2d(in_channels, out_channels, 3, padding=1, bias=False) if out_channels != in_channels else nn.Identity()
-        self.conv = nn.Sequential(nn.Conv2d(in_channels, out_channels//2, 3, padding=1, bias=False),
-                                  nn.BatchNorm2d(out_channels//2),
-                                  nn.ReLU(),
-                                  nn.Conv2d(out_channels//2, out_channels, 3, padding=1, bias=False),
-                                  nn.BatchNorm2d(out_channels),
-                                  nn.ReLU(),
-                                  )
+        # self.conv = nn.Sequential(nn.Conv2d(in_channels, out_channels//2, 3, padding=1, bias=False),
+        #                           nn.BatchNorm2d(out_channels//2),
+        #                           nn.ReLU(),
+        #                           nn.Conv2d(out_channels//2, out_channels, 3, padding=1, bias=False),
+        #                           nn.BatchNorm2d(out_channels),
+        #                           nn.ReLU(),
+        #                           )
+        self.conv = nn.Conv2d(in_channels, out_channels, 1, bias=False)
     def forward(self, x):
         mean = torch.nanmean(x, dim=(2, 3), keepdim=True) # (B, C, 1, 1)
         # std = torch.std(x, dim=(2, 3), keepdim=True) # (B, C, 1, 1)
@@ -141,7 +142,7 @@ class CCA(nn.Module):
         weight = torch.sigmoid(weight)
         output = x * weight
         output = self.conv(output)
-        return output
+        return output + x
         
         
         
