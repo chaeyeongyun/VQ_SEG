@@ -1,4 +1,4 @@
-from .resnet import resnet_encoders, ResNetEncoder, CCAResNetEncoder
+from .resnet import resnet_encoders, ResNetEncoder, CCAResNetEncoder, CCAVQResNetEncoder
 from .pretrained_settings import *
 import torch.utils.model_zoo as model_zoo
 
@@ -6,7 +6,11 @@ import re
 
 def make_encoder(name:str, in_channels:int, depth:int=5, weights=None, padding_mode='zeros', **kwargs):
     if 'resnet' in name:
-        if "cca" in name: 
+        if "ccavq" in name:
+            name = re.sub("ccavq", "", name)
+            params = resnet_encoders[name]["params"]    
+            encoder = CCAVQResNetEncoder(depth=depth, **params, in_channels=in_channels, padding_mode=padding_mode, **kwargs)
+        elif "cca" in name: 
             name = re.sub("cca", "", name)
             params = resnet_encoders[name]["params"]    
             encoder = CCAResNetEncoder(depth=depth, **params, in_channels=in_channels, padding_mode=padding_mode, **kwargs)

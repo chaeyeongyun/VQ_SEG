@@ -273,13 +273,13 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqcanetv3.json')
+    parser.add_argument('--config_path', default='./config/vqcanetv4.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)

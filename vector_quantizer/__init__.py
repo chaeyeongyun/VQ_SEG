@@ -1,8 +1,8 @@
 from .vq_img import VectorQuantizer
 from torch import nn
 import copy
-
-def make_vq_module(vq_cfg, encoder_channels, depth):
+from easydict import EasyDict
+def make_vq_module(vq_cfg:EasyDict, encoder_channels, depth):
     if isinstance(vq_cfg.num_embeddings, (int)):
         codebook = nn.ModuleList([VectorQuantizer(**vq_cfg, dim=encoder_channels[i+1])for i in range(depth)])
     elif isinstance(vq_cfg.num_embeddings, list):
