@@ -133,7 +133,7 @@ class CCA(nn.Module):
         #                           nn.ReLU(),
         #                           )
         self.conv = nn.Conv2d(in_channels, out_channels, 1, bias=False)
-        
+        self.alpha = nn.Parameter(torch.zeros(1, in_channels, 1, 1), requires_grad=True)
     def forward(self, x):
         mean = torch.nanmean(x, dim=(2, 3), keepdim=True) # (B, C, 1, 1)
         # std = torch.std(x, dim=(2, 3), keepdim=True) # (B, C, 1, 1)
@@ -143,7 +143,7 @@ class CCA(nn.Module):
         weight = torch.sigmoid(weight)
         output = x * weight
         output = self.conv(output)
-        return output + x
+        return (output*self.alpha ) + x
         # return output
         
 ### IMDB ###

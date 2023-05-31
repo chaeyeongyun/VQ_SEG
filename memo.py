@@ -1,3 +1,4 @@
+# 최소힙
 class BinaryHeap():
     def __init__(self):
         self.items = [None]
@@ -18,8 +19,25 @@ class BinaryHeap():
             i = parent
             parent = i // 2
     
+    def extract(self):
+        extracted = self.items[1]
+        self.items[1] = self.items[len(self)]
+        self.items.pop()
+        self._percolate_down(1)
+        return extracted
+    
     def _percolate_down(self, idx):
-        
+        left = idx * 2
+        right = idx * 2 + 1
+        smallest = idx
+        if left <= len(self) and self.items[left] < self.items[smallest]:
+            smallest= left
+        if right <= len(self) and self.items[right] < self.items[smallest]:
+            smallest = right
+        if smallest != idx:
+            self.items[idx], self.items[smallest] = self.items[smallest], self.items[idx]
+            self._percolate_down(smallest)
+
 
 # from glob import glob
 # import os.path as osp
