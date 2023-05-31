@@ -179,7 +179,7 @@ class IMDB(nn.Module):
         self.first_conv = CL(in_channels, in_channels, 3, padding=1,  activation=activation)
         self.split_conv = nn.ModuleList([CL((in_channels-self.refine_channels), in_channels, 3, padding=1, activation=activation) for _ in range(split-1)] \
                                                                 + [CL((in_channels-self.refine_channels), self.refine_channels, 3, padding=1, activation=activation)])
-        self.cca = ContrastAttention(in_channels, in_channels)
+        self.cca = ContrastAttention(in_channels)
         self.last_conv = nn.Conv2d(self.refine_channels*(split+1), in_channels, 1, bias=False)
         
     def forward(self, x):
