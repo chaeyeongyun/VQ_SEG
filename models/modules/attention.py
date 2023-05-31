@@ -148,7 +148,7 @@ class CCA(nn.Module):
         
 ### IMDB ###
 class CL(nn.Sequential):
-    def __init__(in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=False, padding_mode='zeros', activation=nn.ReLU):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=False, padding_mode='zeros', activation=nn.ReLU):
         layers = [nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias, padding_mode=padding_mode),
                         activation()]
         super().__init__(*layers)
@@ -177,8 +177,8 @@ class IMDB(nn.Module):
         self.split = split
         self.refine_channels = in_channels // (split+1)
         self.first_conv = CL(in_channels, in_channels, 3, padding=1,  activation=activation)
-        self.split_conv = nn.ModuleList([CL(in_channels-self.refine_channels, in_channels, 3, padding=1, activation=activation) for _ in range(split-1)] \
-                                                                + [CL(in_channels-self.refine_channels, self.refine_channels, 3, padding=1, activation=activation)])
+        self.split_conv = nn.ModuleList([CL((in_channels-self.refine_channels), in_channels, 3, padding=1, activation=activation) for _ in range(split-1)] \
+                                                                + [CL((in_channels-self.refine_channels), self.refine_channels, 3, padding=1, activation=activation)])
         self.cca = ContrastAttention(in_channels, in_channels)
         self.last_conv = nn.Conv2d(self.refine_channels*(split+1), in_channels, 1, bias=False)
         
@@ -196,4 +196,3 @@ class IMDB(nn.Module):
         output = self.last_conv(cca_out)
         return x + output    
         
-
