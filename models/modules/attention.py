@@ -149,11 +149,10 @@ class CCA(nn.Module):
 ### IMDB ###
 class CL(nn.Sequential):
     def __init__(in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=False, padding_mode='zeros', activation=nn.ReLU):
-        layers = [
-            nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias, padding_mode=padding_mode),
-            activation()
-                  ]
+        layers = [nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias, padding_mode=padding_mode),
+                        activation()]
         super().__init__(*layers)
+        
 class ContrastAttention(nn.Module):
     def __init__(self, in_channels:int) :
         super().__init__()

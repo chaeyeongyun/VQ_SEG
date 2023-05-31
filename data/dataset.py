@@ -48,9 +48,9 @@ class BaseDataset(Dataset):
             target = None
         
         if self.resize is not None:
-            img = img.resize(self.resize, resample=Image.Resampling.BILINEAR)
+            img = img.resize(self.resize, resample=Image.BILINEAR)
             if self.target_resize and target is not None:
-                target = target.resize(self.resize, resample=Image.Resampling.NEAREST)
+                target = target.resize(self.resize, resample=Image.NEAREST)
         
         img = TF.to_tensor(img)
         target = torch.from_numpy(np.array(target)) if target is not None else None
