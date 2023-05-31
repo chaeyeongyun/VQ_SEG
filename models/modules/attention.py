@@ -175,6 +175,7 @@ class IMDB(nn.Module):
     def __init__(self, in_channels,  split=3, activation=nn.GELU) :
         super().__init__()
         self.split = split
+        self.in_channels = in_channels
         self.refine_channels = in_channels // (split+1)
         self.first_conv = CL(in_channels, in_channels, 3, padding=1,  activation=activation)
         self.split_conv = nn.ModuleList([CL((in_channels-self.refine_channels), in_channels, 3, padding=1, activation=activation) for _ in range(split-1)] \
