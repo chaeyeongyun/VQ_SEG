@@ -119,9 +119,9 @@ def nanstd(x):
 class CCA(nn.Module):
     def __init__(self, in_channels:int, out_channels:int) :
         super().__init__()
-        self.mlp = nn.Sequential(nn.Conv2d(in_channels, in_channels//2, 1, bias=True),
+        self.mlp = nn.Sequential(nn.Conv2d(in_channels, in_channels//16, 1, bias=True),
                                  nn.ReLU(),
-                                nn.Conv2d(in_channels//2, in_channels, 1, bias=True),
+                                nn.Conv2d(in_channels//16, in_channels, 1, bias=True),
                                 )
         
         # self.conv = nn.Conv2d(in_channels, out_channels, 3, padding=1, bias=False) if out_channels != in_channels else nn.Identity()
@@ -133,6 +133,7 @@ class CCA(nn.Module):
         #                           nn.ReLU(),
         #                           )
         self.conv = nn.Conv2d(in_channels, out_channels, 1, bias=False)
+        
     def forward(self, x):
         mean = torch.nanmean(x, dim=(2, 3), keepdim=True) # (B, C, 1, 1)
         # std = torch.std(x, dim=(2, 3), keepdim=True) # (B, C, 1, 1)
@@ -143,7 +144,57 @@ class CCA(nn.Module):
         output = x * weight
         output = self.conv(output)
         return output + x
+        # return output
+        
+### IMDB ###
+class CL(nn.Sequential):
+    def __init__(in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=False, padding_mode='zeros', activation=nn.ReLU):
+        layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias, padding_mode=padding_mode),
+            activation()
+                  ]
+        super().__init__(*layers)
+class ContrastAttention(nn.Module):
+    def __init__(self, in_channels:int) :
+        super().__init__()
+        self.mlp = nn.Sequential(nn.Conv2d(in_channels, in_channels//16, 1, bias=True),
+                                 nn.ReLU(),
+                                nn.Conv2d(in_channels//16, in_channels, 1, bias=True),
+                                )
         
         
+    def forward(self, x):
+        mean = torch.nanmean(x, dim=(2, 3), keepdim=True) # (B, C, 1, 1)
+        std = torch.sqrt(torch.nanmean((x-mean).pow(2), dim=(2, 3), keepdim=True))
+        weight = mean + std
+        weight = self.mlp(weight)
+        weight = torch.sigmoid(weight)
+        output = x * weight
+        return output  
+    
+class IMDB(nn.Module):
+    def __init__(self, in_channels,  split=3, activation=nn.GELU) :
+        super().__init__()
+        self.split = split
+        self.refine_channels = in_channels // (split+1)
+        self.first_conv = CL(in_channels, in_channels, 3, padding=1,  activation=activation)
+        self.split_conv = nn.ModuleList([CL(in_channels-self.refine_channels, in_channels, 3, padding=1, activation=activation) for _ in range(split-1)] \
+                                                                + [CL(in_channels-self.refine_channels, self.refine_channels, 3, padding=1, activation=activation)])
+        self.cca = ContrastAttention(in_channels, in_channels)
+        self.last_conv = nn.Conv2d(self.refine_channels*(split+1), in_channels, 1, bias=False)
+        
+    def forward(self, x):
+        first_conv_out = self.first_conv(x)
+        refine_list = []
+        
+        course = first_conv_out
+        for i in range(self.split):
+            refine, course = torch.split(course, [self.refine_channels, self.in_channels-self.refine_channels], dim=1)[:]
+            refine_list.append(refine)
+            course = self.split_conv[i](course)
+        cat_feat = torch.cat(refine_list+[course], dim=1)
+        cca_out = self.cca(cat_feat)
+        output = self.last_conv(cca_out)
+        return x + output    
         
 

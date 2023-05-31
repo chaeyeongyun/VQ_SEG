@@ -28,8 +28,7 @@ from measurement import Measurement
 
 def pred_to_obj_pred(pred):
     obj_pred = torch.softmax(pred, dim=1)
-    obj_pred[:, 0, :, :] = 0
-    obj_pred = torch.sum(obj_pred, dim=1)
+    obj_pred = torch.sum(obj_pred[:, 1:, :, :], dim=1, keepdim=True )
     return obj_pred
 
 def target_to_obj_target(target):
@@ -153,8 +152,8 @@ def train(cfg):
             pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
             pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
             # pseudo label
-            pseudo_1 = torch.argmax(pred_1, dim=1).long()
-            pseudo_2 = torch.argmax(pred_2, dim=1).long()
+            pseudo_1 = torch.argmax(pred_1, dim=1).long().detach()
+            pseudo_2 = torch.argmax(pred_2, dim=1).long().detach()
             
             
             with torch.cuda.amp.autocast(enabled=half):
@@ -167,8 +166,8 @@ def train(cfg):
                 ##  object loss
                 obj_pred_1 = pred_to_obj_pred(pred_1)
                 obj_pred_2 = pred_to_obj_pred(pred_2)
-                obj_target_1 = torch.cat([l_target, pseudo_1[-batch_size:]], dim=0)
-                obj_target_2 = torch.cat([l_target, pseudo_2[-batch_size:]], dim=0)
+                obj_target_1 = target_to_obj_target(torch.cat([l_target, pseudo_1[-batch_size:]], dim=0)).detach()
+                obj_target_2 = target_to_obj_target(torch.cat([l_target, pseudo_2[-batch_size:]], dim=0)).detach()
                 obj_loss = object_criterion(obj_pred_1, obj_target_2) + object_criterion(obj_pred_2, obj_target_1)
                 commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
                 
@@ -200,7 +199,7 @@ def train(cfg):
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
-                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
+                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, obj_loss={obj_loss:.4f}, cps_loss={cps_loss:.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
@@ -218,7 +217,7 @@ def train(cfg):
         miou = sum_miou / len(unsup_loader)
         
         print_txt = f"[Epoch{epoch}]" \
-                            + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
+                            + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, obj_loss={obj_loss:.4f}, cps_loss={cps_loss:.4f}"
         print(print_txt)
         test_miou = test(test_loader, model_1, measurement, cfg)
         print(f"test_miou : {test_miou:.4f}")
