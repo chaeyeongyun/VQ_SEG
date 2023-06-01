@@ -29,7 +29,7 @@ def test(test_loader, model, measurement:Measurement, cfg):
     sum_miou = 0
     for data in tqdm(test_loader):
         input_img, mask_img, filename = data['img'], data['target'], data['filename']
-        input_img = input_img.to(model.device)
+        input_img = input_img.to(list(model.parameters())[0].device)
         mask_cpu = img_to_label(mask_img, cfg.pixel_to_label).cpu().numpy()
         model.eval()
         with torch.no_grad():
