@@ -28,7 +28,7 @@ class ConvMixer(nn.Module):
             nn.ReLU(),
             nn.BatchNorm2d(dim)
         )
-        self.mix_layers = nn.Sequential(*[ConvMixer(dim, kernel_size, patch_size) for _ in range(depth)])
+        self.mix_layers = nn.Sequential(*[ConvMixerLayer(dim, kernel_size, patch_size) for _ in range(depth)])
     def forward(self, x):
         x = self.patch_embedding(x)
         x = self.mix_layers(x)

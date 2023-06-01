@@ -9,7 +9,26 @@ from models.modules.prototype import *
 from models.modules.attention import make_attentions, DRSAM, CCA, IMDB
 from models.modules.conv_mixer import *
 from vector_quantizer import make_vq_module
+def __init_weight(feature, init_func:nn, norm_layer, bn_eps, bn_momentum, **kwargs):
+    for name, m in feature.named_modules():
+        if isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
+            init_func(m.weight, **kwargs)
 
+        elif isinstance(m, norm_layer):
+            m.eps = bn_eps
+            m.momentum = bn_momentum
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
+
+
+def init_weight(module_list, init_func:nn, norm_layer, bn_eps, bn_momentum, **kwargs):
+    if isinstance(module_list, list):
+        for feature in module_list:
+            __init_weight(feature, init_func, norm_layer, bn_eps, bn_momentum,
+                          **kwargs)
+    else:
+        __init_weight(module_list, init_func, norm_layer, bn_eps, bn_momentum,
+                      **kwargs)
 class VQPatchUNet(nn.Module):
     def __init__(
         self, 
@@ -26,12 +45,13 @@ class VQPatchUNet(nn.Module):
         ):
         super().__init__()
         
-        encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights)    
-        encoder_channels = encoder.out_channels()
-        encoder_stages = encoder.get_stages()
-        encoder_stages[1] =  ConvMixer(in_channels=in_channels, dim=encoder_channels[1], depth=mixer_depth)
-        self.encoder_stages = nn.ModuleList(encoder_stages)
-        
+        self.encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights)    
+        encoder_channels = self.encoder.out_channels()
+        self.encoder.bn1, self.encoder.relu = nn.Identity(), nn.Identity()
+        self.encoder.conv1=  ConvMixer(in_channels=in_channels, dim=encoder_channels[1], depth=mixer_depth)
+        init_weight([self.encoder.conv1], nn.init.kaiming_normal_, nn.BatchNorm2d, 1e-5, 0.1, 
+                        mode='fan_in', nonlinearity='relu')
+       
         self.codebook = make_vq_module(vq_cfg, encoder_channels, depth)
         if decoder_channels == None:
             decoder_channels = [i//2 for i in encoder_channels[1:]] 
@@ -44,11 +64,7 @@ class VQPatchUNet(nn.Module):
                                                   activation=activation,
                                                   kernel_size=3)
     def forward(self, x, code_usage_loss=False):
-        features = []
-        for i in range(self._depth + 1):
-            x = self.encoder_stages[i](x)
-            features.append(x)
-        features = features[1:]
+        features = self.encoder(x)[1:]
         if len(features) != len(self.codebook) : raise NotImplementedError
         
         loss = torch.tensor([0.], device=x.device, requires_grad=self.training)

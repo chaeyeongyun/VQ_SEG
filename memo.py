@@ -1,63 +1,20 @@
-# 최소힙
-class BinaryHeap():
-    def __init__(self):
-        self.items = [None]
-    
-    def __len__(self):
-        return  len(self.items) - 1
-    
-    def insert(self, k):
-        self.items.append(k)
-        self._percolate_up()   
-    
-    def _percolate_up(self):
-        i = len(self)
-        parent = i//2
-        while parent >= 0:
-            if self.items[i] < self.items[parent]:
-                self.items[parent], self.items[i] = self.items[i], self.items[parent]
-            i = parent
-            parent = i // 2
-    
-    def extract(self):
-        extracted = self.items[1]
-        self.items[1] = self.items[len(self)]
-        self.items.pop()
-        self._percolate_down(1)
-        return extracted
-    
-    def _percolate_down(self, idx):
-        left = idx * 2
-        right = idx * 2 + 1
-        smallest = idx
-        if left <= len(self) and self.items[left] < self.items[smallest]:
-            smallest= left
-        if right <= len(self) and self.items[right] < self.items[smallest]:
-            smallest = right
-        if smallest != idx:
-            self.items[idx], self.items[smallest] = self.items[smallest], self.items[idx]
-            self._percolate_down(smallest)
-
-
-# from glob import glob
-# import os.path as osp
-# import os
-# from collections import defaultdict
-# import shutil
-# from tqdm import tqdm
-# folder = "/content/downloads/cut_car"
-# save_folder = "/content/downloads/cut_car_folds"
-# if not osp.isdir(save_folder): os.mkdir(save_folder)
-# imgs = glob(osp.join(folder, "*.png"))
-# d = defaultdict(list)
-# for img in tqdm(imgs):
-#     filename = osp.split(img)[-1]
-#     cls = osp.splitext(filename)[0].split('_')[-1]
-#     if not osp.isdir(osp.join(save_folder, f'cls_{cls}')):
-#         os.mkdir(osp.join(save_folder, f'cls_{cls}'))
-#     shutil.copyfile(img, osp.join(osp.join(save_folder, f'cls_{cls}'), filename))
-    
-
-
-        
+from models.networks.modified_vqunet import *
+from easydict import EasyDict
+if __name__ == "__main__":
+    params = EasyDict({
+            "encoder_name":"resnet50",
+            "num_classes":3,
+            "depth": 5,
+            "vq_cfg":{
+                "num_embeddings":[0, 0, 512, 512, 512],
+                "distance":"euclidean",
+                "kmeans_init": True
+                },
+            "encoder_weights":"imagenet_swsl",
+            "mixer_depth":3
+            })
+    model = VQPatchUNet(**params)
+    dummy = torch.randn(2, 3, 32, 32)
+    output = model(dummy)
+    a= 1
     
