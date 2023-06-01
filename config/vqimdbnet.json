@@ -49,7 +49,7 @@
         "save_txt":true,
         "save_as_tar":false,
         "wandb_config":["batch_size", "num_epochs"],
-        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "obj_loss", "cps_loss", "commitment_loss", "crop_iou", "weed_iou", "back_iou"],
+        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "cps_loss", "commitment_loss", "crop_iou", "weed_iou", "back_iou"],
         "wandb_metrics":["loss", "miou"] 
     },
     "test":{
