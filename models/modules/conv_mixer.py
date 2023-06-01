@@ -21,7 +21,7 @@ class ConvMixerLayer(nn.Sequential):
                                     nn.BatchNorm2d(dim)) 
                          
 class ConvMixer(nn.Module):
-    def __init__(self, in_channels, dim, depth, kernel_size=9, patch_size=4):
+    def __init__(self, in_channels, dim, depth, kernel_size=9, patch_size=2):
         super().__init__()
         self.patch_embedding = nn.Sequential(
             nn.Conv2d(in_channels, dim, kernel_size=patch_size, stride=patch_size),
