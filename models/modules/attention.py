@@ -143,7 +143,7 @@ class CCA(nn.Module):
         weight = torch.sigmoid(weight)
         output = x * weight
         output = self.conv(output)
-        return (output*self.alpha ) + x
+        return output + (x * self.alpha)
         # return output
         
 ### IMDB ###
