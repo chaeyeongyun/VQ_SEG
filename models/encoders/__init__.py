@@ -23,15 +23,15 @@ def make_encoder(name:str, in_channels:int=3, depth:int=5, weights=None, padding
         encoder = ConvNextEncoder(depth=depth, **params, **kwargs)
         
     if weights is not None:
-        if weights == "imagenet":
-            settings = ImageNet()
-            load_settings = settings.classifier_settings[name][weights]
-        elif weights == "imagenet_ssl":
-            settings = ImageNet()
-            load_settings = settings.self_sup_settings[name]["ssl"]
-        elif weights == "imagenet_swsl":
-            settings = ImageNet()
-            load_settings = settings.self_sup_settings[name]["swsl"]
+        if "imagenet" in weights:
+            load_settings = pretrain_settings[name][weights]
+        #     settings = ImageNet()
+        # elif weights == "imagenet_ssl":
+        #     settings = ImageNet()
+        #     load_settings = settings.self_sup_settings[name]["ssl"]
+        # elif weights == "imagenet_swsl":
+        #     settings = ImageNet()
+        #     load_settings = settings.self_sup_settings[name]["swsl"]
         else:
             assert NotImplementedError('It''s not available weights option' )
         encoder.load_state_dict(model_zoo.load_url(load_settings["url"]))
