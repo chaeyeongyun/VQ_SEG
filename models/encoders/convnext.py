@@ -62,7 +62,7 @@ class ConvNextEncoder(ConvNeXt):
         del self.avgpool
     def get_stages(self):
         self.features = nn.ModuleList(self.features)
-        return return[
+        return[
             nn.Identity(), 
             nn.Sequential(*self.features[:2]),
             nn.Sequential(*self.features[2:4]),

@@ -31,7 +31,7 @@
         "learning_rate":1e-4,
         "lr_scheduler":{
             "name":"cosineannealing",
-            "min_lr":1e-8,
+            "min_lr":1e-6,
             "warmup_steps":0
         },
         "half":true,
