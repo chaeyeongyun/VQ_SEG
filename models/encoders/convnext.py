@@ -54,7 +54,7 @@ convnext_encoders = {
     }
 }
 class ConvNextEncoder(ConvNeXt):
-    def __init__(self, out_channels,  depth=5, **kwargs):
+    def __init__(self, out_channels,  depth=4, **kwargs):
         super().__init__( **kwargs)
         self._depth = depth
         self._out_channels = out_channels
@@ -62,12 +62,12 @@ class ConvNextEncoder(ConvNeXt):
         del self.avgpool
     def get_stages(self):
         self.features = nn.ModuleList(self.features)
-        return [
+        return return[
             nn.Identity(), 
-            self.features[:2],
-            self.features[2:4],
-            self.features[4:6],
-            self.features[6:]
+            nn.Sequential(*self.features[:2]),
+            nn.Sequential(*self.features[2:4]),
+            nn.Sequential(*self.features[4:6]),
+            nn.Sequential(*self.features[6:])
         ]
     def forward(self, x):
         stages = self.get_stages()
