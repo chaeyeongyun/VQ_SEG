@@ -20,7 +20,7 @@
                 "kmeans_init": true
                 },
             "encoder_weights":"imagenet_swsl",
-            "mixer_depth":3
+            "mixer_depth":6
             }
         },
     "train":{

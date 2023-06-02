@@ -1,10 +1,11 @@
 from .resnet import resnet_encoders, ResNetEncoder, CCAResNetEncoder, CCAVQResNetEncoder
+from .convnext import convnext_encoders, ConvNextEncoder
 from .pretrained_settings import *
 import torch.utils.model_zoo as model_zoo
 
 import re
 
-def make_encoder(name:str, in_channels:int, depth:int=5, weights=None, padding_mode='zeros', **kwargs):
+def make_encoder(name:str, in_channels:int=3, depth:int=5, weights=None, padding_mode='zeros', **kwargs):
     if 'resnet' in name:
         if "ccavq" in name:
             name = re.sub("ccavq", "", name)
@@ -17,6 +18,9 @@ def make_encoder(name:str, in_channels:int, depth:int=5, weights=None, padding_m
         else:
             params = resnet_encoders[name]["params"]
             encoder = ResNetEncoder(depth=depth, **params, in_channels=in_channels, padding_mode=padding_mode, **kwargs)
+    if 'convnext' in name:
+        params = resnet_encoders[name]["params"]
+        encoder = ConvNextEncoder(depth=depth, **params, **kwargs)
         
     if weights is not None:
         if weights == "imagenet":

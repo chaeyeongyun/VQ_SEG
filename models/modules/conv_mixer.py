@@ -9,7 +9,7 @@ class Residual(nn.Module):
         return self.fn(x) + x
 
 class ConvMixerLayer(nn.Sequential):
-    def __init__(self, dim, kernel_size=9, patch_size=4):
+    def __init__(self, dim, kernel_size=9, patch_size=2):
         super().__init__(Residual(
                                         nn.Sequential(
                                             nn.Conv2d(dim, dim, kernel_size, groups=dim, padding="same"),
