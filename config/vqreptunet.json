@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQUnetv2_kmeans_with_imagenet_weights",
+    "project_name":"VQRePTUnet",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{
@@ -7,9 +7,9 @@
         "128":1,
         "255":2
     },
-    "resize":512,
+    "resize":448,
     "model":{
-        "name":"vqunet_v2",
+        "name":"vqreptunet",
         "params":{
             "encoder_name":"resnet50",
             "num_classes":3,
@@ -19,6 +19,9 @@
                 "distance":"euclidean",
                 "kmeans_init": true
                 },
+            "margin":0.5,
+            "scale":30.0,
+            "use_feature":false,
             "encoder_weights":"imagenet_swsl"
             }
         },
@@ -31,7 +34,7 @@
         "learning_rate":1e-4,
         "lr_scheduler":{
             "name":"cosineannealing",
-            "min_lr":1e-8,
+            "min_lr":1e-7,
             "warmup_steps":0
         },
         "half":true,
@@ -39,16 +42,19 @@
         "bn_eps":1e-5,
         "bn_momentum":0.1,
         "criterion":{
-            "name":"dice_loss"
+            "name":"dice_loss",
+            "weight":[0.5, 1.0, 1.0]
         },
         "cps_loss_weight":1,
         "total_commitment_loss_weight":1,
+        "total_prototype_loss_weight":0.01,
+        "unsup_loss_drop_percent":20,
         "resume":null,
         "save_img":true,
         "save_txt":true,
         "save_as_tar":false,
         "wandb_config":["batch_size", "num_epochs"],
-        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "cps_loss", "commitment_loss", "crop_iou", "weed_iou", "back_iou"],
+        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "cps_loss", "commitment_loss", "prototype_loss", "crop_iou", "weed_iou", "back_iou"],
         "wandb_metrics":["loss", "miou"] 
     },
     "test":{
@@ -56,6 +62,6 @@
         "save_dir":"../drive/MyDrive/semi_sup_test/CWFID",
         "device":0,
         "batch_size":1,
-        "weights":"../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v23/ckpoints"
+        "weights":"../drive/MyDrive/semi_sup_train/CWFID/"
     }
 }

@@ -19,7 +19,8 @@ network_dict = {
      "vqcanetv3":VQCANetv3,
      "vqcanetv4":VQCANetv4,
      "vqimdbnet":VQIMDBNet,
-     "vqpatchunet":VQPatchUNet
+     "vqpatchunet":VQPatchUNet,
+     "vqreptunet":VQRePTUnet
 }
 
 def make_model(model_cfg:dict):

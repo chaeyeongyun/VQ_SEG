@@ -39,7 +39,7 @@ def test(test_loader, model, measurement:Measurement, cfg):
     sum_miou = 0
     for data in tqdm(test_loader):
         input_img, mask_img, filename = data['img'], data['target'], data['filename']
-        input_img = input_img.to(model.device)
+        input_img = input_img.to(list(model.parameters())[0].device)
         mask_cpu = img_to_label(mask_img, cfg.pixel_to_label).cpu().numpy()
         model.eval()
         with torch.no_grad():
@@ -273,7 +273,7 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqcanet_obj_loss.json')
+    parser.add_argument('--config_path', default='./config/cps_vqv2_kmeans_with_imagenet_weights.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
@@ -290,6 +290,9 @@ if __name__ == "__main__":
     # cfg.model.params.encoder_weights = "imagenet_swsl"
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
+    cfg.project_name = 'VQUNet_obj_loss'
+    cfg.train.obj_loss_weight = 1
     cfg.train.wandb_log.append('test_miou')
+    cfg.train.wandb_log.append('obj_loss')
     # TODO: debugging
     train(cfg)

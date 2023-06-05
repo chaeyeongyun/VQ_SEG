@@ -1,4 +1,3 @@
-
 import argparse
 import matplotlib.pyplot as plt
 import os
@@ -26,7 +25,20 @@ from data.dataset import BaseDataset
 
 from loss import make_loss
 from measurement import Measurement
-
+def test(test_loader, model, measurement:Measurement, cfg):
+    sum_miou = 0
+    for data in tqdm(test_loader):
+        input_img, mask_img, filename = data['img'], data['target'], data['filename']
+        input_img = input_img.to(list(model.parameters())[0].device)
+        mask_cpu = img_to_label(mask_img, cfg.pixel_to_label).cpu().numpy()
+        model.eval()
+        with torch.no_grad():
+            pred = model(input_img)[0]
+        miou, _ = measurement.miou(measurement._make_confusion_matrix(pred.detach().cpu().numpy(), mask_cpu))
+        sum_miou += miou
+    miou = sum_miou / len(test_loader)
+    print(f'test miou : {miou}')
+    return miou
 # 일단 no cutmix version
 def train(cfg):
     seed_everything()
@@ -61,16 +73,19 @@ def train(cfg):
         models.init_weight([model_2.decoder, model_2.segmentation_head], nn.init.kaiming_normal_,
                         nn.BatchNorm2d, cfg.train.bn_eps, cfg.train.bn_momentum, 
                         mode='fan_in', nonlinearity='relu')
-    
-    weight=cfg.train.criterion.get('weight', None)
-    if weight is not None: weight = torch.tensor(weight).to(device)
-    criterion = make_loss(cfg.train.criterion.name, num_classes, ignore_index=cfg.train.criterion.get('ignore_index', -100), weight=weight)
+    loss_weight = cfg.train.criterion.get("weight", None)
+    loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
+    criterion = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight)
     
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
     unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled',  batch_size=batch_size, resize=cfg.resize)
     
     sup_loader = DataLoader(sup_dataset, batch_size=batch_size, shuffle=True)
     unsup_loader = DataLoader(unsup_dataset, batch_size=batch_size, shuffle=True)
+    ##test##
+    test_dataset = BaseDataset(os.path.join(cfg.test.data_dir, 'test'), split='labelled', batch_size=1, resize=cfg.resize)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+    ###
     
     
     if cfg.train.lr_scheduler.name == 'warmuppoly':
@@ -91,6 +106,7 @@ def train(cfg):
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
     total_prototype_loss_weight = cfg.train.total_prototype_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
+    best_miou = 0
     for epoch in range(num_epochs):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
         crop_iou, weed_iou, back_iou = 0, 0, 0
@@ -101,6 +117,8 @@ def train(cfg):
         sum_miou = 0
         ep_start = time.time()
         pbar =  tqdm(range(len(unsup_loader)))
+        model_1.train()
+        model_2.train()
         for batch_idx in pbar:
             sup_dict, unsup_dict = next(trainloader)
             l_input, l_target = sup_dict['img'], sup_dict['target']
@@ -115,15 +133,17 @@ def train(cfg):
 
             pseudo_1 = model_1.pseudo_label(ul_input)
             pseudo_2 = model_2.pseudo_label(ul_input)
+            
+            percent_unreliable = cfg.train.unsup_loss_drop_percent * (1-epoch/num_epochs)
+            drop_percent = 100 - percent_unreliable
             with torch.cuda.amp.autocast(enabled=half):
-                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target)
-                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target)
+                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
+                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
                 ## predict in unsupervised manner ##
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1)
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
-            
             ## cps loss ##
             pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
             pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
@@ -133,6 +153,7 @@ def train(cfg):
             
             
             with torch.cuda.amp.autocast(enabled=half):
+                ## cps loss
                 ## cps loss
                 cps_loss = criterion(pred_1, pseudo_2) + criterion(pred_2, pseudo_1)
                 ## supervised loss
@@ -174,7 +195,7 @@ def train(cfg):
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
-                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss.item():.4f}, cps_loss={cps_loss.item():.4f}, commitment_loss={commitment_loss.item():.4f}"
+                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss.item():.4f}, cps_loss={cps_loss:.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
@@ -194,6 +215,19 @@ def train(cfg):
         print_txt = f"[Epoch{epoch}]" \
                             + f"miou={miou:.4f}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss:.4f}, cps_loss={cps_loss:.4f}, commitment_loss={commitment_loss:.4f}"
         print(print_txt)
+        test_miou = test(test_loader, model_1, measurement, cfg)
+        print(f"test_miou : {test_miou:.4f}")
+        if best_miou <= test_miou:
+            best_miou = test_miou
+            if logger is not None:
+                save_ckpoints(model_1.state_dict(),
+                            model_2.state_dict(),
+                            epoch,
+                            batch_idx,
+                            optimizer_1.state_dict(),
+                            optimizer_2.state_dict(),
+                            os.path.join(ckpoints_dir, f"best_test_miou.pth"))
+        
         if logger != None:
             log_txt.write(print_txt)
             params = [l_input, l_target, pred_sup_1, ul_input, pred_ul_1]
@@ -235,19 +269,23 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vq_pt_unet.json')
+    parser.add_argument('--config_path', default='./config/vqreptunet.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    # cfg.resize=512
-    cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.resize=64
+    # cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     # cfg.train.half=False
-    cfg.resize = 448
+    # cfg.resize = 256
     # train(cfg)
-    cfg.project_name = 'vq_pt_unet_weighted_ce_loss'
-    cfg.train.criterion.name = 'cross_entropy'
-    cfg.train.criterion.weight = [0.5, 0.8, 1.0]
+    # cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
+    # cfg.train.criterion = "cross_entropy"
+    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
+    # train(cfg)
+    # cfg.model.params.encoder_weights = "imagenet_swsl"
+    # train(cfg)
+    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
+    cfg.train.wandb_log.append('test_miou')
+    
     train(cfg)
-    # cfg.model.params.pop("encoder_weights")
-    # train(cfg)
