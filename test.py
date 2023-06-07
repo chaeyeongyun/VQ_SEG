@@ -175,9 +175,9 @@ if __name__ == "__main__":
     #     test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    cfg = get_config_from_json('./config/vqcanet.json')
+    cfg = get_config_from_json('./config/vqreptunet.json')
     # cfg.resize = 448
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQCANet111/ckpoints/best_test_miou.pth"]
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet116/ckpoints"]
     
     for w in w_l:
         # debug

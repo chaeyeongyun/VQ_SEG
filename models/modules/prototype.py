@@ -10,8 +10,8 @@ import math
 def l1norm(t:torch.Tensor, dim):
     return F.normalize(t, p=1, dim=dim)
 
-def l2norm(t):
-    return F.normalize(t, p = 2, dim = -1)
+def l2norm(t, dim):
+    return F.normalize(t, p = 2, dim = dim)
 
 def batched_sample_vectors(samples, num): # kmeans에 sample_fn으로 들어감
     return torch.stack([sample_vectors(sample, num) for sample in samples.unbind(dim = 0)], dim = 0)
@@ -59,7 +59,7 @@ def kmeans(flatten_x, num_clusters, num_iters, use_cosine_sim=False):
         new_means = new_means / rearrange(bins_min_clamped, '... -> ... 1') # (num_codebooks, num_cluster, dim)
         #                                  # (num_codebooks, num_cluster) -> (num_codebooks, num_cluster, 1)
         if use_cosine_sim:
-            new_means = l2norm(new_means)
+            new_means = l2norm(new_means, dim=-1)
 
         means = torch.where(rearrange(zero_mask, '... -> ... 1'), # bin이 0인 곳에 대해서 
             means, # means를 적용하고
@@ -119,6 +119,7 @@ class PrototypeLoss(nn.Module):
         # l1 norm
         self.embedding.weight.data = l1norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
         flatten_x = l1norm(flatten_x, dim=-1)
+        
         # cosine
         # cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
         # cosine = torch.mm(flatten_x, self.embedding.weight.transpose(0,1)) # (BHW, C) x (C, 3) = (BHW, 3)
@@ -422,8 +423,11 @@ class ReliablePrototypeLoss(nn.Module):
             self.embedding.weight.data.copy_(temp)
         
         # l1 norm
-        self.embedding.weight.data = l1norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
-        flatten_x = l1norm(flatten_x, dim=-1)
+        # self.embedding.weight.data = l1norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
+        # flatten_x = l1norm(flatten_x, dim=-1)
+        # l2 norm
+        self.embedding.weight.data = l2norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
+        flatten_x = l2norm(flatten_x, dim=-1)
         # cosine
         # cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
         # cosine = torch.mm(flatten_x, self.embedding.weight.transpose(0,1)) # (BHW, C) x (C, 3) = (BHW, 3)
