@@ -68,6 +68,13 @@ def kmeans(flatten_x, num_clusters, num_iters, use_cosine_sim=False):
     
     return means, bins
 
+def orthogonal_loss_fn(t):
+    # eq (2) from https://arxiv.org/abs/2112.00384
+    n, d = t.shape[:2]
+    normed_codes = l2norm(t, dim=-1)
+    cosine_sim = torch.einsum('i d, j d -> i j', normed_codes, normed_codes)
+    return (cosine_sim ** 2).sum() / (n ** 2) - (1 / n)
+
 class PrototypeLoss(nn.Module):
     def __init__(self, num_classes, embedding_dim, scale, margin, init='kmeans', use_feature=False, easy_margin=True) :
         super().__init__()
@@ -375,7 +382,8 @@ class NEDPrototypeLoss(nn.Module):
         
 
 class ReliablePrototypeLoss(nn.Module):
-    def __init__(self, num_classes, embedding_dim, scale, margin, init='kmeans', use_feature=False, easy_margin=True) :
+    def __init__(self, num_classes, embedding_dim, scale, margin, init='kmeans', use_feature=False, easy_margin=True, 
+                 orthogonal_reg_weight=1.) :
         super().__init__()
         self.use_feature = use_feature
         self.num_classes = num_classes
@@ -384,6 +392,9 @@ class ReliablePrototypeLoss(nn.Module):
         self.init = init
         self.embedding = nn.Embedding(num_embeddings=num_classes,
                                         embedding_dim=embedding_dim)
+        self.orthogonal_reg_weight = orthogonal_reg_weight
+        
+        
         self.initted = False
         if init == 'uniform':
             # uniform distribution initialization
@@ -455,11 +466,17 @@ class ReliablePrototypeLoss(nn.Module):
             # drop_percent = 100 - percent_unreliable
             thresh_mask = torch.le(entropy, thresh)
         ###
-        cosine = cosine * torch.stack([thresh_mask]*3, dim=-1) # entropy 작은것들만 살림.
+        # cosine = cosine * torch.stack([thresh_mask]*3, dim=-1) # entropy 작은것들만 살림.
+        cosine = cosine * thresh_mask.unsqueeze(-1)
         positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
         # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
         sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
         loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)) 
+        
+        if self.orthogonal_reg_weight > 0:
+            codebook = self.embedding.weight
+            orthogonal_reg_loss = orthogonal_loss_fn(codebook)
+            loss = loss + orthogonal_reg_loss * self.orthogonal_reg_weight
         return loss
     
     def _kmeans_init(self, flatten_x):    
@@ -471,6 +488,77 @@ class ReliablePrototypeLoss(nn.Module):
             self.num_classes,
             num_iters=10,
             use_cosine_sim=False # l1norm 해줌
+        )
+        
+        self.embedding.weight.data.copy_(embed[0])
+        self.initted = True
+        
+class ReliableEuclideanPrototypeLoss(nn.Module):
+    def __init__(self, num_classes, embedding_dim, scale, margin, init='kmeans', use_feature=False,) :
+        super().__init__()
+        self.use_feature = use_feature
+        self.num_classes = num_classes
+        self.init = init
+        self.embedding = nn.Embedding(num_embeddings=num_classes,
+                                        embedding_dim=embedding_dim)
+        
+        # uniform distribution initialization
+        self.initted = False
+        if init == 'uniform':
+            # uniform distribution initialization
+            self.embedding.weight.data.uniform_(-1/num_classes, 1/num_classes)
+            self.initted = True
+        elif init == 'normal':
+            self.embedding.weight.data.normal_()
+            self.initted = True
+        elif init == 'kmeans':
+            pass
+        else:
+            raise ValueError('init has to be in [''uniform'', ''normal'', ''kmeans'']')
+          
+                
+    def forward(self, x, gt, percent, entropy):
+        gt = gt.unsqueeze(1) if gt.dim()==3 else gt
+        if gt.shape != x.shape:
+            gt = F.interpolate(gt.float(), x.shape[-2:], mode='nearest').long()
+
+        x_b, x_c, x_h, x_w = x.shape[:]
+        flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BHW, C)
+        flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
+        
+        if not self.initted and self.init == 'kmeans':
+            self._kmeans_init(flatten_x)
+        
+        if self.use_feature:
+            temp = []
+            for i in range(self.num_classes):
+                ind = (flatten_gt == i).nonzero(as_tuple=True)
+                temp.append(torch.mean(flatten_x[ind[0]], dim=0, keepdim=True)) # (1, C)
+            temp = torch.cat(temp, dim=0) # (num_classes, C)
+            self.embedding.weight.data.copy_(temp)
+            
+        loss = torch.tensor([0.], device=x.device, requires_grad=self.training, dtype=torch.float32)
+         ## entropy filtering ##
+        with torch.no_grad():
+            thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), percent) # scalar
+            # percent_unreliable = cfg.train.unsup_loss.drop_percent * (1-epoch/num_epochs)
+            # drop_percent = 100 - percent_unreliable
+            thresh_mask = torch.le(entropy, thresh)
+        ###
+        gt_embed = self.embedding.weight[flatten_gt[:, 0]]
+        flatten_x = flatten_x * thresh_mask.unsqueeze(-1)
+        gt_embed = gt_embed * thresh_mask.unsqueeze(-1)
+        loss = loss + F.mse_loss(flatten_x, gt_embed)
+        return loss
+    
+    def _kmeans_init(self, flatten_x):    
+        if self.initted:
+            return
+        
+        embed, cluster_size = kmeans(
+            flatten_x,
+            self.num_classes,
+            num_iters=10,
         )
         
         self.embedding.weight.data.copy_(embed[0])
