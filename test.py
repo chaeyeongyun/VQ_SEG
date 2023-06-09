@@ -177,7 +177,7 @@ if __name__ == "__main__":
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
     cfg = get_config_from_json('./config/vqreptunet.json')
     # cfg.resize = 448
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet117/ckpoints"]
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet118/ckpoints"]
     
     for w in w_l:
         # debug

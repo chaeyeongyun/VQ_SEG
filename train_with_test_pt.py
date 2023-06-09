@@ -269,7 +269,7 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqreptunet.json')
+    parser.add_argument('--config_path', default='./config/vqreeuptunet.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
