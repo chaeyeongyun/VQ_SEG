@@ -9,7 +9,7 @@ from glob import glob
 import os
 import argparse
 
-
+import copy
 from data.dataset import BaseDataset
 from utils.load_config import get_config_from_json
 from utils.device import device_setting
@@ -42,9 +42,9 @@ def test(cfg):
     logger_name = logger_name[logger_name.index('ckpoints')-1]
     # make save folders
     save_dir = os.path.join(cfg.test.save_dir, logger_name)
-    os.makedirs(save_dir)
+    os.makedirs(save_dir, exist_ok=True)
     img_dir = os.path.join(save_dir, 'imgs')
-    os.mkdir(img_dir)
+    os.makedirs(img_dir, exist_ok=True)
     
     logger = TestLogger(cfg, logger_name) if cfg.wandb_logging else None
     test_data = BaseDataset(os.path.join(cfg.test.data_dir, 'test'), split='labelled', resize=cfg.resize, target_resize=False)
@@ -52,19 +52,20 @@ def test(cfg):
     f = open(os.path.join(save_dir, 'results.txt'), 'w')
     f.write(f"data_dir:{cfg.test.data_dir}, weights:{cfg.test.weights}, save_dir:{cfg.test.save_dir}")
 
+    best_result = None
     if os.path.isfile(cfg.test.weights):
+        best_result = test_loop(model, weights, num_classes, pixel_to_label_map, testloader, device)
         best_result = test_loop(model, weights, num_classes, pixel_to_label_map, testloader, device)
     elif os.path.isdir(cfg.test.weights):
         weights_list = glob(os.path.join(cfg.test.weights, '*.pth'))
         weights_list.sort()
         best_miou = 0.
-        best_result = None
         for weights in weights_list:
             result = test_loop(model, weights, num_classes, pixel_to_label_map, testloader, device)
             if result == None: continue
             if result.metrics.test_miou >= best_miou:
-                best_miou = result.metrics.test_miou
-                best_result = result
+                best_miou = copy.deepcopy(result.metrics.test_miou)
+                best_result = copy.deepcopy(result)
     
     assert best_result != None, "weights file has some problem"
     f.write(best_result.result_txt)
@@ -175,9 +176,11 @@ if __name__ == "__main__":
     #     test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    cfg = get_config_from_json('./config/vqreptunet.json')
+    cfg = get_config_from_json('./config/vqreeuptunet.json')
     # cfg.resize = 448
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet118/ckpoints"]
+    cfg.model.name = "vqreptunet1x1"
+    
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet9/ckpoints/best_test_miou.pth"]
     
     for w in w_l:
         # debug
@@ -186,6 +189,7 @@ if __name__ == "__main__":
         # cfg.wandb_logging = False
         cfg.test.weights = w
         test(cfg)
+    
         
     # cfg = get_config_from_json("./config/cps_vqv1.json")
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v186/ckpoints",

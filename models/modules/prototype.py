@@ -442,7 +442,7 @@ class ReliablePrototypeLoss(nn.Module):
         # cosine
         # cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
         # cosine = torch.mm(flatten_x, self.embedding.weight.transpose(0,1)) # (BHW, C) x (C, 3) = (BHW, 3)
-        cosine = F.linear(flatten_x, self.embedding.weight)
+        cosine = F.linear(flatten_x, self.embedding.weight) 
         
         x_ind = torch.arange(x_b*x_h*x_w, dtype=torch.long)
         # margin
