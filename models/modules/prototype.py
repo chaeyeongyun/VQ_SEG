@@ -112,7 +112,7 @@ class PrototypeLoss(nn.Module):
         flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BHW, C)
         flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
         
-        if not self.initted and self.init == 'kmeans':
+        if not self.initted and self.init == 'kmeans' and self.training:
             self._kmeans_init(flatten_x)
         
         if self.use_feature:
@@ -199,7 +199,7 @@ class EuclideanPrototypeLoss(nn.Module):
         flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BHW, C)
         flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
         
-        if not self.initted and self.init == 'kmeans':
+        if not self.initted and self.init == 'kmeans' and self.training:
             self._kmeans_init(flatten_x)
         
         if self.use_feature:
@@ -262,7 +262,7 @@ class LearnableEuclideanPrototypeLoss(nn.Module):
         flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BHW, C)
         flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
         
-        if not self.initted and self.init == 'kmeans':
+        if not self.initted and self.init == 'kmeans' and self.training:
             self._kmeans_init(flatten_x)
         
         indexes = [torch.nonzero(flatten_gt==i, as_tuple=True)[0] for i in range(self.num_classes)]
@@ -422,7 +422,7 @@ class ReliablePrototypeLoss(nn.Module):
         flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BHW, C)
         flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
         
-        if not self.initted and self.init == 'kmeans':
+        if not self.initted and self.init == 'kmeans' and self.training:
             self._kmeans_init(flatten_x)
         
         if self.use_feature:
@@ -526,7 +526,7 @@ class ReliableEuclideanPrototypeLoss(nn.Module):
         flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BHW, C)
         flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
         
-        if not self.initted and self.init == 'kmeans':
+        if not self.initted and self.init == 'kmeans' and self.training:
             self._kmeans_init(flatten_x)
         
         if self.use_feature:

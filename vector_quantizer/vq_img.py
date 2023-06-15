@@ -95,7 +95,7 @@ class CosinesimCodebook(nn.Module):
         x_shape, dtype = x.shape, x.dtype
         flatten_x = rearrange(x, 'b ... c -> b (...) c')
         flatten_x = l2norm(flatten_x)
-        if self.kmeans_init:
+        if self.kmeans_init and self.training:
             self._kmeans_init(flatten_x)
         self.embedding.weight.data.copy_(l2norm(self.embedding.weight.data))
         
@@ -162,7 +162,7 @@ class EuclideanCodebook(nn.Module):
         x = x.float()
         x_shape, dtype = x.shape, x.dtype
         flatten_x = rearrange(x, 'b ... c -> b (...) c')
-        if self.kmeans_init:
+        if self.kmeans_init and self.training:
             self._kmeans_init(flatten_x)
         distance = torch.cdist(flatten_x, self.embedding.weight, p=2) # (N, 모든 픽셀 수, num_embeddings)
         embed_idx = torch.argmin(distance, dim=-1) # (N, 모든 픽셀 수)

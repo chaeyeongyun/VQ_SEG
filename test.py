@@ -18,6 +18,9 @@ from utils.seg_tools import img_to_label
 from utils.logger import TestLogger, dict_to_table_log, make_img_table
 from measurement import Measurement
 import models
+from utils.seed import seed_everything
+
+
 
 def make_filename(filename_list, insert):
     for i, filename in enumerate(filename_list):
@@ -26,6 +29,7 @@ def make_filename(filename_list, insert):
     return filename_list
 
 def test(cfg):
+    seed_everything()
     # debug
     # cfg.resize=32
     # cfg.project_name = 'debug'
@@ -55,7 +59,7 @@ def test(cfg):
     best_result = None
     if os.path.isfile(cfg.test.weights):
         best_result = test_loop(model, weights, num_classes, pixel_to_label_map, testloader, device)
-        best_result = test_loop(model, weights, num_classes, pixel_to_label_map, testloader, device)
+        
     elif os.path.isdir(cfg.test.weights):
         weights_list = glob(os.path.join(cfg.test.weights, '*.pth'))
         weights_list.sort()
@@ -86,6 +90,7 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
         weights = weights.get('model_1', weights)
     except:
         return None
+    
     model.load_state_dict(weights)
     model.eval()
     measurement = Measurement(num_classes)
@@ -176,9 +181,8 @@ if __name__ == "__main__":
     #     test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    cfg = get_config_from_json('./config/vqreeuptunet.json')
+    cfg = get_config_from_json('./config/vqreptunet1x1.json')
     # cfg.resize = 448
-    cfg.model.name = "vqreptunet1x1"
     
     w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet9/ckpoints/best_test_miou.pth"]
     
@@ -186,7 +190,7 @@ if __name__ == "__main__":
         # debug
         # cfg.resize=32
         # cfg.project_name = 'debug'
-        # cfg.wandb_logging = False
+        cfg.wandb_logging = False
         cfg.test.weights = w
         test(cfg)
     
