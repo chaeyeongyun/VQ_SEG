@@ -269,7 +269,7 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqreptunet.json')
+    parser.add_argument('--config_path', default='./config/vqreptunet1x1_bonirob.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
@@ -286,7 +286,7 @@ if __name__ == "__main__":
     # cfg.model.params.encoder_weights = "imagenet_swsl"
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
-    cfg.project_name = cfg.project_name+"_no_norm"
+    # cfg.project_name = cfg.project_name+"_no_norm"
     cfg.train.wandb_log.append('test_miou')
     
     train(cfg)
