@@ -813,6 +813,7 @@ class Unet(nn.Module):
         depth:int=5,
         activation=nn.Identity,
         upsampling=2,
+        encoder_weights=None
         ):
         super().__init__()
         
