@@ -13,8 +13,7 @@
         "params":{
             "encoder_name":"resnet50",
             "num_classes":3,
-            "depth": 5,
-            "encoder_weights":"imagenet_swsl"
+            "depth": 5
             }
     },
     "train":{
@@ -22,14 +21,14 @@
         "save_dir":"../drive/MyDrive/only_sup_train/rice_s_n_w",
         "device":0,
         "num_epochs":400,
-        "batch_size":8,
-        "learning_rate":1e-4,
+        "batch_size":4,
+        "learning_rate":1e-5,
         "lr_scheduler":{
             "name":"cosineannealing",
             "min_lr":1e-7,
             "warmup_steps":0
         },
-        "half":true,
+        "half":false,
         "init_weights":true,
         "bn_eps":1e-5,
         "bn_momentum":0.1,

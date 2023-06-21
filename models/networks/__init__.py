@@ -2,6 +2,7 @@ from .unet.net import *
 from .vqvaev2.net import *
 from .modified_vqunet import *
 network_dict = {
+    "unetoriginal":UnetOriginal,
     "unet":Unet,
     "vqunet_v1":VQUnet_v1,
     "vqunet_v2":VQUnet_v2,

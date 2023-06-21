@@ -75,7 +75,6 @@ def train(cfg):
     criterion = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight)
     
     traindataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
-    
     trainloader = DataLoader(traindataset, batch_size=batch_size, shuffle=False)
     ##test##
     testdataset = BaseDataset(os.path.join(cfg.test.data_dir, 'test'), split='labelled', batch_size=1, resize=cfg.resize)
@@ -201,8 +200,8 @@ if __name__ == "__main__":
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=32
-    cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
@@ -213,10 +212,18 @@ if __name__ == "__main__":
     # cfg.model.params.encoder_weights = "imagenet_swsl"
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
-    cfg_list = ['./config/CWFID_Unet.json', "./config/IJRR2017_Unet.json", "./config/rice_s_n_w.json"]
+    cfg_list = ['./config/CWFID_Unet.json', "./config/IJRR2017_Unet.json", "./config/rice_s_n_w_Unet.json"]
     for json in cfg_list:
         cfg = get_config_from_json(json)
+        # cfg.wandb_logging = False
+        cfg.model = {
+        "name":"unetoriginal",
+        "params":{
+            "in_channels":3
+            }
+        }
         # num30인 경우
         # dataset = os.path.splitext(os.path.split(json)[-1])[0].split("_")[0]s
         cfg.train.wandb_log.append('test_miou')
         train(cfg)
+        
