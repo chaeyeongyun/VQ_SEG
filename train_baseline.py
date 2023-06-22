@@ -25,6 +25,8 @@ from data.dataset import BaseDataset
 
 from loss import make_loss
 from measurement import Measurement
+from warmup_scheduler import GradualWarmupScheduler
+
 def test(test_loader, model, measurement:Measurement, cfg):
     sum_miou = 0
     for data in tqdm(test_loader):
@@ -38,6 +40,7 @@ def test(test_loader, model, measurement:Measurement, cfg):
         sum_miou += miou
     miou = sum_miou / len(test_loader)
     print(f'test miou : {miou}')
+    model.train()
     return miou
 # 일단 no cutmix version
 def train(cfg):
@@ -64,15 +67,7 @@ def train(cfg):
     
     model = models.networks.make_model(cfg.model).to(device)
 
-    # initialize differently (segmentation head)
-    if cfg.train.init_weights:
-        models.init_weight([model.decoder, model.segmentation_head], nn.init.kaiming_normal_,
-                        nn.BatchNorm2d, cfg.train.bn_eps, cfg.train.bn_momentum, 
-                        mode='fan_in', nonlinearity='relu')
-    
-    loss_weight = cfg.train.criterion.get("weight", None)
-    loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
-    criterion = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight)
+    criterion = make_loss(cfg.train.criterion.name, num_classes)
     
     traindataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
     trainloader = DataLoader(traindataset, batch_size=batch_size, shuffle=False)
@@ -81,6 +76,7 @@ def train(cfg):
     testloader = DataLoader(testdataset, batch_size=1, shuffle=False)
     ###
     
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.learning_rate, betas=(0.9, 0.999))
     
     if cfg.train.lr_scheduler.name == 'warmuppoly':
         lr_sched_cfg = cfg.train.lr_scheduler
@@ -88,10 +84,13 @@ def train(cfg):
                                     total_iters=len(trainloader)*num_epochs,
                                     warmup_steps=len(trainloader)*cfg.lr_sched_cfg.warmup_epoch)
     elif cfg.train.lr_scheduler.name == 'cosineannealing':
-        lr_sched_cfg = cfg.train.lr_scheduler
-        lr_scheduler = CosineAnnealingLR(start_lr = cfg.train.learning_rate, min_lr=lr_sched_cfg.min_lr, total_iters=len(trainloader)*num_epochs, warmup_steps=lr_sched_cfg.warmup_steps)
+        # lr_sched_cfg = cfg.train.lr_scheduler
+        # lr_scheduler = CosineAnnealingLR(start_lr = cfg.train.learning_rate, min_lr=lr_sched_cfg.min_lr, total_iters=len(trainloader)*num_epochs, warmup_steps=lr_sched_cfg.warmup_steps)
+        warmup_epochs=3
+        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epochs-warmup_epochs, eta_min=1e-7)
+        lr_scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=warmup_epochs, after_scheduler=cosine_scheduler)
+        lr_scheduler.step()
     
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.learning_rate, betas=(0.9, 0.999))
     
         
     
@@ -100,15 +99,14 @@ def train(cfg):
     best_miou = 0
     for epoch in range(num_epochs):
         # trainloader = iter(trainloader)
+        model.train()
         crop_iou, weed_iou, back_iou = 0, 0, 0
-        sum_cps_loss, sum_sup_loss_1, sum_sup_loss_2 = 0, 0, 0
-        sum_commitment_loss = 0
         sum_loss = 0
         sum_miou = 0
-        ep_start = time.time()
+        trainloader_iter = iter(trainloader)
         pbar =  tqdm(range(len(trainloader)))
         for batch_idx in pbar:
-            sup_dict = next(iter(trainloader))
+            sup_dict = trainloader_iter.next()
             l_input, l_target = sup_dict['img'], sup_dict['target']
             l_target = img_to_label(l_target, cfg.pixel_to_label)
             
@@ -123,11 +121,13 @@ def train(cfg):
             with torch.cuda.amp.autocast(enabled=half):
                 loss = criterion(pred, l_target)
                 
-                ## learning rate update
-                current_idx = epoch * len(trainloader) + batch_idx
-                learning_rate = lr_scheduler.get_lr(current_idx)
-                # update the learning rate
-                optimizer.param_groups[0]['lr'] = learning_rate
+                # ## learning rate update
+                # current_idx = epoch * len(trainloader) + batch_idx
+                # learning_rate = lr_scheduler.get_lr(current_idx)
+                # # update the learning rate
+                # optimizer.param_groups[0]['lr'] = learning_rate
+                learning_rate = optimizer.param_groups[0]['lr']
+                
                 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -147,12 +147,9 @@ def train(cfg):
             if logger != None:
                 log_txt.write(print_txt)
         
+        lr_scheduler.step()
         ## end epoch ## 
         back_iou, weed_iou, crop_iou = back_iou / len(trainloader), weed_iou / len(trainloader), crop_iou / len(trainloader)
-        cps_loss = sum_cps_loss / len(trainloader)
-        sup_loss_1 = sum_sup_loss_1 / len(trainloader)
-        sup_loss_2 = sum_sup_loss_2 / len(trainloader)
-        commitment_loss = sum_commitment_loss / len(trainloader)
         loss = sum_loss / len(trainloader)
         miou = sum_miou / len(trainloader)
         
@@ -216,12 +213,12 @@ if __name__ == "__main__":
     for json in cfg_list:
         cfg = get_config_from_json(json)
         # cfg.wandb_logging = False
-        cfg.model = {
-        "name":"unetoriginal",
-        "params":{
-            "in_channels":3
-            }
-        }
+        # cfg.model = {
+        # "name":"unetoriginal",
+        # "params":{
+        #     "in_channels":3
+        #     }
+        # }
         # num30인 경우
         # dataset = os.path.splitext(os.path.split(json)[-1])[0].split("_")[0]s
         cfg.train.wandb_log.append('test_miou')

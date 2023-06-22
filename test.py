@@ -105,7 +105,8 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
         mask_cpu = img_to_label(mask_img, pixel_to_label_map)
         
         with torch.no_grad():
-            pred = model(input_img)[0]
+            pred = model(input_img)
+            pred = pred[0] if isinstance(pred, tuple) else pred
         
         pred = F.interpolate(pred, mask_img.shape[-2:], mode='bilinear')
         pred_numpy, mask_numpy = pred.detach().cpu().numpy(), mask_cpu.cpu().numpy()
@@ -181,10 +182,15 @@ if __name__ == "__main__":
     #     test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    cfg = get_config_from_json('./config/vqreptunet1x1.json')
+    cfg = get_config_from_json('./config/CWFID_Unet.json')
     # cfg.resize = 448
-    
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet9/ckpoints/best_test_miou.pth"]
+    cfg.model = {
+        "name":"unetoriginal",
+        "params":{
+            "in_channels":3
+            }
+        }
+    w_l = ["../drive/MyDrive/only_sup_train/CWFID/unetoriginal_seg20/ckpoints/best_test_miou.pth"]
     
     for w in w_l:
         # debug

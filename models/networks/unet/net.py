@@ -949,6 +949,7 @@ class UnetOriginal(nn.Module):
                                                   upsampling=upsampling,
                                                   activation=activation,
                                                   kernel_size=1)
+        
         if init_weights:
             print('initialize weights...')
             self._initialize_weights()
