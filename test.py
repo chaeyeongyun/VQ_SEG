@@ -42,10 +42,10 @@ def test(cfg):
     
     model = models.networks.make_model(cfg.model).to(device)
     # logger_name = (cfg.model.name+"_"+model.encoder.__class__.__name__+"_"+model.decoder.__class__.__name__+"_"+str(len(os.listdir(cfg.test.save_dir))))
-    logger_name =  cfg.test.weights.split('/')
-    logger_name = logger_name[logger_name.index('ckpoints')-2]+"/"+logger_name[logger_name.index('ckpoints')-1]
+    l =  cfg.test.weights.split('/')
+    logger_name = l[l.index('ckpoints')-2]+"/"+l[l.index('ckpoints')-1]
     # make save folders
-    save_dir = os.path.join(cfg.test.save_dir, logger_name)
+    save_dir = os.path.join(cfg.test.save_dir, l[l.index('ckpoints')-1])
     os.makedirs(save_dir, exist_ok=True)
     img_dir = os.path.join(save_dir, 'imgs')
     os.makedirs(img_dir, exist_ok=True)
@@ -140,9 +140,9 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
     test_recall /= len(testloader)
     test_f1score /= len(testloader)
     
-    result_txt = "load model(.pt) : %s \n Testaccuracy: %.8f, Test miou: %.8f" % (weights_file,  test_acc, test_miou)       
-    result_txt += f"\niou per class {test_ious}"
-    result_txt += f"\nprecision : {test_precision}, recall : {test_recall}, f1score : {test_f1score} " 
+    result_txt = "load model(.pt) : %s \n Testaccuracy: %.4f, Test miou: %.4f" % (weights_file,  test_acc, test_miou)       
+    result_txt += f"\niou per class {test_ious:.4f}"
+    result_txt += f"\nprecision : {test_precision:.4f}, recall : {test_recall:.4f}, f1score : {test_f1score:.4f} " 
     print(result_txt)
     return_dict = {
         "metrics":
@@ -184,9 +184,9 @@ if __name__ == "__main__":
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
     
 
-    w_l = ["../drive/MyDrive/only_sup_train/CWFID/unet_num307/ckpoints/best_test_miou.pth",
-           "../drive/MyDrive/only_sup_train/IJRR2017/unet_num301/ckpoints/best_test_miou.pth",
-           "../drive/MyDrive/only_sup_train/rice_s_n_w/unet_num301/ckpoints/best_test_miou.pth"]
+    w_l = ["../drive/MyDrive/only_sup_train/CWFID/unet_num206/ckpoints/best_test_miou.pth",
+           "../drive/MyDrive/only_sup_train/IJRR2017/unet_num202/ckpoints/best_test_miou.pth",
+           "../drive/MyDrive/only_sup_train/rice_s_n_w/unet_num202/ckpoints/best_test_miou.pth"]
     cfg_l = ['./config/CWFID_Unet.json', './config/IJRR2017_Unet.json', './config/rice_s_n_w_Unet.json']
     for i in range(len(w_l)):
         # debug

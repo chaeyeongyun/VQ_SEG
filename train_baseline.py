@@ -222,7 +222,7 @@ if __name__ == "__main__":
         # }
         # num30인 경우
         dataset = os.path.splitext(os.path.split(json)[-1])[0][:-5]
-        cfg.train.data_dir = os.path.join(f"../data/semi_sup_data/{dataset}/num20")
+        cfg.train.data_dir = os.path.join(f"../data/semi_sup_data/{dataset}/num10")
         cfg.train.wandb_log.append('test_miou')
         train(cfg)
         
