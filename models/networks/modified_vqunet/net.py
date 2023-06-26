@@ -64,7 +64,7 @@ class VQRePTUnet1x1(nn.Module):
         self.device = None
         self.upsampling = nn.UpsamplingBilinear2d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
         
-    def forward(self, x, gt=None, code_usage_loss=False, percent=None):
+    def forward(self, x, gt=None, code_usage_loss=False, percent=None, ispseudo=True):
         if self.device is None:
             self.device = x.device
         features = self.encoder(x)[1:]
@@ -91,7 +91,7 @@ class VQRePTUnet1x1(nn.Module):
             prob = rearrange(output, 'b c h w -> (b h w) c') 
             prob = torch.softmax(prob, dim=1)
             entropy = -torch.sum(prob*torch.log(prob+1e-10), dim=1) # (BHW, )
-        prototype_loss = self.prototype_loss(decoder_out, gt, percent=percent, entropy=entropy) if self.training else None
+        prototype_loss = self.prototype_loss(decoder_out, gt, percent=percent, entropy=entropy, ispseudo=ispseudo) if self.training else None
         output = self.upsampling(output)
         if code_usage_loss : 
             usage_loss = usage_loss / len(features)

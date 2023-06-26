@@ -210,6 +210,7 @@ if __name__ == "__main__":
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
     cfg_list = ['./config/CWFID_Unet.json', "./config/IJRR2017_Unet.json", "./config/rice_s_n_w_Unet.json"]
+    # cfg_list = ["./config/rice_s_n_w_Unet.json"]
     for json in cfg_list:
         cfg = get_config_from_json(json)
         # cfg.wandb_logging = False
@@ -220,7 +221,8 @@ if __name__ == "__main__":
         #     }
         # }
         # num30인 경우
-        # dataset = os.path.splitext(os.path.split(json)[-1])[0].split("_")[0]s
+        dataset = os.path.splitext(os.path.split(json)[-1])[0][:-5]
+        cfg.train.data_dir = os.path.join(f"../data/semi_sup_data/{dataset}/num20")
         cfg.train.wandb_log.append('test_miou')
         train(cfg)
         

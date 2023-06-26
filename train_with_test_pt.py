@@ -137,11 +137,16 @@ def train(cfg):
             percent_unreliable = cfg.train.unsup_loss_drop_percent * (1-epoch/num_epochs)
             drop_percent = 100 - percent_unreliable
             with torch.cuda.amp.autocast(enabled=half):
-                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
-                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
+                # pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
+                # pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
+                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent, ispseudo=False)
+                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent, ispseudo=False)
+                
                 ## predict in unsupervised manner ##
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
+                # pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
+                # pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent, ispseudo=True)
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent, ispseudo=True)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             ## cps loss ##
@@ -269,7 +274,7 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqreptunet1x1_bonirob.json')
+    parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug

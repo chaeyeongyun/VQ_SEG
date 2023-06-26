@@ -43,7 +43,7 @@ def test(cfg):
     model = models.networks.make_model(cfg.model).to(device)
     # logger_name = (cfg.model.name+"_"+model.encoder.__class__.__name__+"_"+model.decoder.__class__.__name__+"_"+str(len(os.listdir(cfg.test.save_dir))))
     logger_name =  cfg.test.weights.split('/')
-    logger_name = logger_name[logger_name.index('ckpoints')-1]
+    logger_name = logger_name[logger_name.index('ckpoints')-2]+"/"+logger_name[logger_name.index('ckpoints')-1]
     # make save folders
     save_dir = os.path.join(cfg.test.save_dir, logger_name)
     os.makedirs(save_dir, exist_ok=True)
@@ -182,22 +182,19 @@ if __name__ == "__main__":
     #     test(cfg)
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    cfg = get_config_from_json('./config/CWFID_Unet.json')
-    # cfg.resize = 448
-    cfg.model = {
-        "name":"unetoriginal",
-        "params":{
-            "in_channels":3
-            }
-        }
-    w_l = ["../drive/MyDrive/only_sup_train/CWFID/unetoriginal_seg20/ckpoints/best_test_miou.pth"]
     
-    for w in w_l:
+
+    w_l = ["../drive/MyDrive/only_sup_train/CWFID/unet_num307/ckpoints/best_test_miou.pth",
+           "../drive/MyDrive/only_sup_train/IJRR2017/unet_num301/ckpoints/best_test_miou.pth",
+           "../drive/MyDrive/only_sup_train/rice_s_n_w/unet_num301/ckpoints/best_test_miou.pth"]
+    cfg_l = ['./config/CWFID_Unet.json', './config/IJRR2017_Unet.json', './config/rice_s_n_w_Unet.json']
+    for i in range(len(w_l)):
         # debug
         # cfg.resize=32
         # cfg.project_name = 'debug'
-        cfg.wandb_logging = False
-        cfg.test.weights = w
+        cfg = get_config_from_json(cfg_l[i])
+        # cfg.wandb_logging = False
+        cfg.test.weights = w_l[i]
         test(cfg)
     
         
