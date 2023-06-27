@@ -131,22 +131,29 @@ def train(cfg):
             l_target = l_target.to(device)
             ul_input = ul_input.to(device)
 
-            pseudo_1 = model_1.pseudo_label(ul_input)
-            pseudo_2 = model_2.pseudo_label(ul_input)
+            # pseudo_1 = model_1.pseudo_label(ul_input)
+            # pseudo_2 = model_2.pseudo_label(ul_input)
+            with torch.no_grad():
+                model_1.eval()
+                model_2.eval()
+                pseudo_1 = torch.argmax(model_1(ul_input)[0], dim=1)
+                pseudo_2 = torch.argmax(model_2(ul_input)[0], dim=1)
+                model_1.train()
+                model_2.train()
             
             percent_unreliable = cfg.train.unsup_loss_drop_percent * (1-epoch/num_epochs)
             drop_percent = 100 - percent_unreliable
             with torch.cuda.amp.autocast(enabled=half):
                 # pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
                 # pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
-                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent, ispseudo=False)
-                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent, ispseudo=False)
+                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
+                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
                 
                 ## predict in unsupervised manner ##
                 # pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
                 # pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent, ispseudo=True)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent, ispseudo=True)
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             ## cps loss ##

@@ -209,8 +209,8 @@ if __name__ == "__main__":
     # cfg.model.params.encoder_weights = "imagenet_swsl"
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
-    cfg_list = ['./config/CWFID_Unet.json', "./config/IJRR2017_Unet.json", "./config/rice_s_n_w_Unet.json"]
-    # cfg_list = ["./config/rice_s_n_w_Unet.json"]
+    # cfg_list = ['./config/CWFID_Unet.json', "./config/IJRR2017_Unet.json", "./config/rice_s_n_w_Unet.json"]
+    cfg_list = ["./config/CWFID_Unet.json"]
     for json in cfg_list:
         cfg = get_config_from_json(json)
         # cfg.wandb_logging = False

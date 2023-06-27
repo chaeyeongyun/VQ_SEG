@@ -383,7 +383,7 @@ class NEDPrototypeLoss(nn.Module):
 
 class ReliablePrototypeLoss(nn.Module):
     def __init__(self, num_classes, embedding_dim, scale, margin, init='kmeans', use_feature=False, easy_margin=True, 
-                 orthogonal_reg_weight=0) :
+                 orthogonal_reg_weight=1.) :
         super().__init__()
         self.use_feature = use_feature
         self.num_classes = num_classes
@@ -413,7 +413,7 @@ class ReliablePrototypeLoss(nn.Module):
         self.th = math.cos(math.pi - margin)
         self.mm = math.sin(math.pi - margin) * margin
                 
-    def forward(self, x, gt, percent, entropy, ispseudo=True):
+    def forward(self, x, gt, percent, entropy):
         gt = gt.unsqueeze(1) if gt.dim()==3 else gt
         if gt.shape != x.shape:
             gt = F.interpolate(gt.float(), x.shape[-2:], mode='nearest').long()
@@ -458,16 +458,16 @@ class ReliablePrototypeLoss(nn.Module):
         # scale
         cosine = self.scale * cosine
         
-        if ispseudo:
-            ## entropy filtering ##
-            with torch.no_grad():
-                thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), percent) # scalar
-                # percent_unreliable = cfg.train.unsup_loss.drop_percent * (1-epoch/num_epochs)
-                # drop_percent = 100 - percent_unreliable
-                thresh_mask = torch.le(entropy, thresh)
-            ###
-            # cosine = cosine * torch.stack([thresh_mask]*3, dim=-1) # entropy 작은것들만 살림.
-            cosine = cosine * thresh_mask.unsqueeze(-1)
+        
+        ## entropy filtering ##
+        with torch.no_grad():
+            thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), percent) # scalar
+            # percent_unreliable = cfg.train.unsup_loss.drop_percent * (1-epoch/num_epochs)
+            # drop_percent = 100 - percent_unreliable
+            thresh_mask = torch.le(entropy, thresh)
+        ###
+        # cosine = cosine * torch.stack([thresh_mask]*3, dim=-1) # entropy 작은것들만 살림.
+        cosine = cosine * thresh_mask.unsqueeze(-1)
         positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
         # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
         sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )

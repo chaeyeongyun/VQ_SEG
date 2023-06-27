@@ -141,7 +141,7 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
     test_f1score /= len(testloader)
     
     result_txt = "load model(.pt) : %s \n Testaccuracy: %.4f, Test miou: %.4f" % (weights_file,  test_acc, test_miou)       
-    result_txt += f"\niou per class {test_ious:.4f}"
+    result_txt += f"\niou per class {list(map(lambda x: round(x, 4), test_ious))}"
     result_txt += f"\nprecision : {test_precision:.4f}, recall : {test_recall:.4f}, f1score : {test_f1score:.4f} " 
     print(result_txt)
     return_dict = {
@@ -184,10 +184,12 @@ if __name__ == "__main__":
     #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
     
 
-    w_l = ["../drive/MyDrive/only_sup_train/CWFID/unet_num206/ckpoints/best_test_miou.pth",
-           "../drive/MyDrive/only_sup_train/IJRR2017/unet_num202/ckpoints/best_test_miou.pth",
-           "../drive/MyDrive/only_sup_train/rice_s_n_w/unet_num202/ckpoints/best_test_miou.pth"]
-    cfg_l = ['./config/CWFID_Unet.json', './config/IJRR2017_Unet.json', './config/rice_s_n_w_Unet.json']
+    # w_l = ["../drive/MyDrive/only_sup_train/CWFID/unet_num106/ckpoints/best_test_miou.pth",
+    #        "../drive/MyDrive/only_sup_train/IJRR2017/unet_num103/ckpoints/best_test_miou.pth",
+    #        "../drive/MyDrive/only_sup_train/rice_s_n_w/unet_num103/ckpoints/best_test_miou.pth"]
+    # cfg_l = ['./config/CWFID_Unet.json', './config/IJRR2017_Unet.json', './config/rice_s_n_w_Unet.json']
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet1x113/ckpoints/best_test_miou.pth"]
+    cfg_l = ["./config/vqreptunet1x1.json"]
     for i in range(len(w_l)):
         # debug
         # cfg.resize=32
