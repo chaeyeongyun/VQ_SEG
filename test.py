@@ -188,7 +188,7 @@ if __name__ == "__main__":
     #        "../drive/MyDrive/only_sup_train/IJRR2017/unet_num103/ckpoints/best_test_miou.pth",
     #        "../drive/MyDrive/only_sup_train/rice_s_n_w/unet_num103/ckpoints/best_test_miou.pth"]
     # cfg_l = ['./config/CWFID_Unet.json', './config/IJRR2017_Unet.json', './config/rice_s_n_w_Unet.json']
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet1x113/ckpoints/best_test_miou.pth"]
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet1x127/ckpoints/best_test_miou.pth"]
     cfg_l = ["./config/vqreptunet1x1.json"]
     for i in range(len(w_l)):
         # debug

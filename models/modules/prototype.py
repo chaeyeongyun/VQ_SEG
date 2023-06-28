@@ -383,7 +383,7 @@ class NEDPrototypeLoss(nn.Module):
 
 class ReliablePrototypeLoss(nn.Module):
     def __init__(self, num_classes, embedding_dim, scale, margin, init='kmeans', use_feature=False, easy_margin=True, 
-                 orthogonal_reg_weight=1.) :
+                 orthogonal_reg_weight=0) :
         super().__init__()
         self.use_feature = use_feature
         self.num_classes = num_classes
