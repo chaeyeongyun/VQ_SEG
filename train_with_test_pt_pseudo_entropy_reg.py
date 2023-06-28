@@ -29,8 +29,8 @@ import numpy as np
 
 def make_regularized_pseudo_label(raw_pseudo, percent):
     pseudo_prob = torch.softmax(raw_pseudo, dim=1)
-    pseudo_label = torch.argmax(pseudo_prob, dim=1)
-    entropy = -torch.sum(pseudo_prob * torch.log(pseudo_prob + 1e-10), dim=1) # 픽셀별 entropy
+    pseudo_label = torch.argmax(pseudo_prob, dim=1) # (N, H, W)
+    entropy = -torch.sum(pseudo_prob * torch.log(pseudo_prob + 1e-10), dim=1) # 픽셀별 entropy N, H, W
     thresh = np.percentile(
             entropy.detach().cpu().numpy().flatten(), percent
         )
