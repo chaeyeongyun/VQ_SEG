@@ -101,6 +101,19 @@ resnet_encoders = {
     },
 }
 
+def replace_strides_with_dilation(module, dilation_rate):
+    """Patch Conv2d modules replacing strides with dilation"""
+    for mod in module.modules():
+        if isinstance(mod, nn.Conv2d):
+            mod.stride = (1, 1)
+            mod.dilation = (dilation_rate, dilation_rate)
+            kh, kw = mod.kernel_size
+            mod.padding = ((kh // 2) * dilation_rate, (kh // 2) * dilation_rate)
+
+            # Kostyl for EfficientNet
+            if hasattr(mod, "static_padding"):
+                mod.static_padding = nn.Identity()
+                
 class ResNetEncoder(ResNet):
     '''for unet'''
     def __init__(self, out_channels, depth=5, in_channels=3, padding_mode='zeros', **kwargs):
@@ -175,6 +188,31 @@ class ResNetEncoder(ResNet):
     def out_channels(self):
         """Return channels dimensions for each tensor of forward output of encoder"""
         return self._out_channels[: self._depth + 1]
+    def make_dilated(self, output_stride):
+    
+        if output_stride == 16:
+            stage_list = [
+                5,
+            ]
+            dilation_list = [
+                2,
+            ]
+
+        elif output_stride == 8:
+            stage_list = [4, 5]
+            dilation_list = [2, 4]
+
+        else:
+            raise ValueError("Output stride should be 16 or 8, got {}.".format(output_stride))
+
+        self._output_stride = output_stride
+
+        stages = self.get_stages()
+        for stage_indx, dilation_rate in zip(stage_list, dilation_list):
+            replace_strides_with_dilation(
+                module=stages[stage_indx],
+                dilation_rate=dilation_rate,
+            )
 
 class CCAResNetEncoder(ResNet):
     '''for unet'''

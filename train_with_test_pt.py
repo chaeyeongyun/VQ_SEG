@@ -299,6 +299,11 @@ if __name__ == "__main__":
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
     # cfg.project_name = cfg.project_name+"_no_norm"
+    cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
     cfg.train.wandb_log.append('test_miou')
-    
+    cfg.model.params.encoder_weights = None
+    train(cfg)
+    cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
+    cfg.train.wandb_log.append('test_miou')
+    cfg.model.params.encoder_weights = None
     train(cfg)

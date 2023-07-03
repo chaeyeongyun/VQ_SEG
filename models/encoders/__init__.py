@@ -1,11 +1,10 @@
 from .resnet import resnet_encoders, ResNetEncoder, CCAResNetEncoder, CCAVQResNetEncoder
-from .convnext import convnext_encoders, ConvNextEncoder
 from .pretrained_settings import *
 import torch.utils.model_zoo as model_zoo
 
 import re
 
-def make_encoder(name:str, in_channels:int=3, depth:int=5, weights=None, padding_mode='zeros', **kwargs):
+def make_encoder(name:str, in_channels:int=3, depth:int=5, weights=None, padding_mode='zeros', output_stride=32, **kwargs):
     if 'resnet' in name:
         if "ccavq" in name:
             name = re.sub("ccavq", "", name)
@@ -18,9 +17,6 @@ def make_encoder(name:str, in_channels:int=3, depth:int=5, weights=None, padding
         else:
             params = resnet_encoders[name]["params"]
             encoder = ResNetEncoder(depth=depth, **params, in_channels=in_channels, padding_mode=padding_mode, **kwargs)
-    if 'convnext' in name:
-        params = convnext_encoders[name]["params"]
-        encoder = ConvNextEncoder(depth=depth, **params, **kwargs)
         
     if weights is not None:
         if "imagenet" in weights:
@@ -35,5 +31,6 @@ def make_encoder(name:str, in_channels:int=3, depth:int=5, weights=None, padding
         else:
             assert NotImplementedError('It''s not available weights option' )
         encoder.load_state_dict(model_zoo.load_url(load_settings["url"]))
-
+    if output_stride != 32:
+        encoder.make_dilated(output_stride)
     return encoder

@@ -1,7 +1,10 @@
 from .unet.net import *
+from .deeplabv3 import *
 from .vqvaev2.net import *
 from .modified_vqunet import *
 network_dict = {
+    "deeplabv3":DeepLabV3,
+    "deeplabv3plus":DeepLabV3Plus,
     "unetoriginal":UnetOriginal,
     "unet":Unet,
     "vqunet_v1":VQUnet_v1,
