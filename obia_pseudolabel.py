@@ -39,7 +39,7 @@ def make_feature(image, image_gray, gt_image):
     featarray = np.stack(l)
     return featarray, train_y, assignment
 
-def main(image_root="/content/data/semi_sup_data/CWFID/num30/train",save_path = "/content/data/semi_sup_data/CWFID/OBIA_pseudo_label"):
+def main(image_root="/content/data/semi_sup_data/rice_s_n_w/num30/train",save_path = "/content/data/semi_sup_data/rice_s_n_w/OBIA_pseudo_label"):
     target_filenames = os.listdir(osp.join(image_root, "target"))
     
     feat_list = []

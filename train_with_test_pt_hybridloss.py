@@ -302,7 +302,7 @@ if __name__ == "__main__":
     # cfg.project_name = cfg.project_name+"_no_norm"
     cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
     cfg.train.wandb_log.append('test_miou')
-    cfg.wandb_logging = False
+    # cfg.wandb_logging = False
     cfg.model.params.encoder_weights = "imagenet"
     train(cfg)
     # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
