@@ -310,7 +310,7 @@ def train(cfg):
         
         if logger != None:
             log_txt.write(print_txt)
-            params = [l_input, l_target, pred_sup_1, ul_input, pred_ul_1] if epoch >= cfg.train.only_sup_epochs else [l_input, l_target, None, None]
+            params = [l_input, l_target, pred_sup_1, ul_input, pred_ul_1] if epoch >= cfg.train.only_sup_epochs else [l_input, l_target, pred_sup_1, None, None]
             params = [detach_numpy(i) if i is not None else None for i in params]
             example = make_example_img(*params)
             logger.image_update(example, f'{epoch}ep')
