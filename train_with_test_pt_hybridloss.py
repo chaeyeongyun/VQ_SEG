@@ -170,8 +170,8 @@ def train(cfg):
                 ## cps loss
                 cps_loss = ce_loss(pred_1, pseudo_2) + ce_loss(pred_2, pseudo_1) + dice_loss(pred_1, pseudo_2) + dice_loss(pred_2, pseudo_1)
                 ## supervised loss
-                sup_loss_1 = ce_loss(pred_sup_1, l_target) + dice_loss(pred_sup_1, l_target)
-                sup_loss_2 = ce_loss(pred_sup_2, l_target) + dice_loss(pred_sup_2, l_target)
+                sup_loss_1 = 0.5*ce_loss(pred_sup_1, l_target) + dice_loss(pred_sup_1, l_target)
+                sup_loss_2 = 0.5*ce_loss(pred_sup_2, l_target) + dice_loss(pred_sup_2, l_target)
                 sup_loss = sup_loss_1 + sup_loss_2
                 ## commitment_loss
                 commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
