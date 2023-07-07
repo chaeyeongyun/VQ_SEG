@@ -366,9 +366,9 @@ if __name__ == "__main__":
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=256
-    cfg.project_name = 'debug'
-    cfg.train.batch_size=3
-    cfg.wandb_logging = False
+    # cfg.project_name = 'debug'
+    # cfg.train.batch_size=3
+    # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
@@ -383,7 +383,7 @@ if __name__ == "__main__":
     
     
     # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    # cfg.project_name = cfg.project_name + "_easyhard"
+    cfg.project_name = cfg.project_name + "_easyhard"
     cfg.train.wandb_log.append('test_miou')
     # cfg.model.params.encoder_weights = "imagenet"
     # cfg.wandb_logging = False
