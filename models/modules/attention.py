@@ -3,11 +3,125 @@ from typing import List
 import torch
 from torch.nn import Module, Conv2d, Softmax, Parameter, ModuleList, Identity
 from torch import nn
+from functools import reduce
 def make_attentions(attention:Module, encoder_channels, flag):
     attentions = [attention(ch) if f else Identity() for ch, f in zip(encoder_channels, flag)]
     attentions = ModuleList(attentions)
     return attentions
+class ConvBlock(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride,
+                 padding,
+                 dilation=1,
+                 groups=1,
+                 bias=False,
+                 bn_eps=1e-5,
+                 activation=nn.ReLU):
+        super(ConvBlock, self).__init__()
+        self.activate = (activation is not None)
+
+        self.conv = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias)
+        self.bn = nn.BatchNorm2d(
+            num_features=out_channels,
+            eps=bn_eps)
+        if self.activate:
+            self.activ = activation()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        if self.activate:
+            x = self.activ(x)
+        return x
     
+class SKA(nn.Module):
+    """
+        SKNet specific convolution block.
+
+        Parameters:
+        ----------
+        in_channels : int
+            Number of input channels.
+        out_channels : int
+            Number of output channels.
+        stride : int or tuple/list of 2 int
+            Strides of the convolution.
+        groups : int, default 32
+            Number of groups in branches.
+        num_branches : int, default 2
+            Number of branches (`M` parameter in the paper).
+        reduction : int, default 16
+            Reduction value for intermediate channels (`r` parameter in the paper).
+        min_channels : int, default 32
+            Minimal number of intermediate channels (`L` parameter in the paper).
+    """
+    def __init__(self,
+                    in_channels,
+                    out_channels,
+                    stride=1,
+                    num_branches=2,
+                    reduction=16,
+                    min_channels=32):
+        super(SKA, self).__init__()
+        self.num_branches = num_branches
+        self.out_channels = out_channels
+        mid_channels = max(in_channels // reduction, min_channels)
+
+        branches =[]
+        for i in range(num_branches):
+            branches.append(
+                ConvBlock(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=(2*(i+1)+1),
+                stride=stride,
+                padding=1,
+                groups=in_channels)
+                ) # depthwise
+        self.branches = nn.ModuleList(branches)
+        self.pool = nn.AdaptiveAvgPool2d(output_size=1)
+        self.fc1 = ConvBlock(
+            in_channels=out_channels,
+            out_channels=mid_channels,
+            kernel_size=1)
+        self.fc2 = Conv2d(
+            in_channels=mid_channels,
+            out_channels=(out_channels * num_branches), kernel_size=1)
+        self.softmax = nn.Softmax(dim=1)
+        
+    def forward(self, x):
+        outs = []
+        for branch in self.branches:
+            outs.append(branch(x))
+    
+        u = reduce(lambda x,y: x+y, outs) # (N, C, H, W)
+        s = self.pool(u) # (N, C, 1, 1)
+        z = self.fc1(s) # (N, C/r, 1, 1)
+        w = self.fc2(z) # (N, C*2, 1, 1)
+
+        batch = w.size(0)
+        w = w.view(batch, self.num_branches, self.out_channels) # (N, 2, C)
+        w = self.softmax(w) # (N, 2, C)
+        w = w.unsqueeze(-1).unsqueeze(-1) # (N, 2, C, 1, 1)
+        for i in range(len(outs)):
+            outs[i] = outs[i] * w[:, i, :, :, :]  #(N, C, 1, 1)
+        y = reduce(lambda x, y:x+y, outs)
+        return y
+        
+
+
+
 class DualAttention(Module):
     def __init__(self, in_dim:int):
         super().__init__()

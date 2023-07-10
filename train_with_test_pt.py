@@ -370,11 +370,12 @@ if __name__ == "__main__":
     
     
     # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    cfg.train.wandb_log.append('test_miou')
     # cfg.model.params.encoder_weights = "imagenet"
+    # cfg.train.only_sup_epochs = 10
+    cfg = get_config_from_json("./config/vqretemptunet.json")
     # cfg.wandb_logging = False
     # cfg.resize=64
-    # cfg.train.only_sup_epochs = 10
+    cfg.train.wandb_log.append('test_miou')
     train(cfg)
     # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     # cfg.train.wandb_log.append('test_miou')

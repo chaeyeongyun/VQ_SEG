@@ -563,3 +563,97 @@ class ReliableEuclideanPrototypeLoss(nn.Module):
         
         self.embedding.weight.data.copy_(embed[0])
         self.initted = True
+        
+        
+
+class StableTemperaturedPrototypeLoss(nn.Module):
+    def __init__(self, num_classes, embedding_dim, t=0.1, init='kmeans', use_feature=False,  
+                 orthogonal_reg_weight=0) :
+        super().__init__()
+        self.use_feature = use_feature
+        self.num_classes = num_classes
+        self.t = t
+        self.init = init
+        self.embedding = nn.Embedding(num_embeddings=num_classes,
+                                        embedding_dim=embedding_dim)
+        self.orthogonal_reg_weight = orthogonal_reg_weight
+        
+        
+        self.initted = False
+        if init == 'uniform':
+            # uniform distribution initialization
+            self.embedding.weight.data.uniform_(-1/num_classes, 1/num_classes)
+            self.initted = True
+        elif init == 'normal':
+            self.embedding.weight.data.normal_()
+            self.initted = True
+        elif init == 'kmeans':
+            pass
+        else:
+            raise ValueError('init has to be in [''uniform'', ''normal'', ''kmeans'']')
+                
+    def forward(self, x, gt, percent, entropy):
+        gt = gt.unsqueeze(1) if gt.dim()==3 else gt
+        if gt.shape != x.shape:
+            gt = F.interpolate(gt.float(), x.shape[-2:], mode='nearest').long()
+
+        x_b, x_c, x_h, x_w = x.shape[:]
+        flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BHW, C)
+        flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
+        
+        if not self.initted and self.init == 'kmeans' and self.training:
+            self._kmeans_init(flatten_x)
+        
+        if self.use_feature:
+            temp = []
+            for i in range(self.num_classes):
+                ind = (flatten_gt == i).nonzero(as_tuple=True)
+                temp.append(torch.mean(flatten_x[ind[0]], dim=0, keepdim=True)) # (1, C)
+            temp = torch.cat(temp, dim=0) # (num_classes, C)
+            self.embedding.weight.data.copy_(temp)
+        
+        # l1 norm
+        # self.embedding.weight.data = l1norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
+        # flatten_x = l1norm(flatten_x, dim=-1)
+        # l2 norm
+        self.embedding.weight.data = l2norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
+        flatten_x = l2norm(flatten_x, dim=-1)
+        # cosine
+        # cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes)
+        # cosine = torch.mm(flatten_x, self.embedding.weight.transpose(0,1)) # (BHW, C) x (C, 3) = (BHW, 3)
+        cosine = F.linear(flatten_x, self.embedding.weight) 
+        x_ind = torch.arange(x_b*x_h*x_w, dtype=torch.long)
+        ## entropy filtering ##
+        with torch.no_grad():
+            thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), percent) # scalar
+            # percent_unreliable = cfg.train.unsup_loss.drop_percent * (1-epoch/num_epochs)
+            # drop_percent = 100 - percent_unreliable
+            thresh_mask = torch.le(entropy, thresh)
+        ###
+        # cosine = cosine * torch.stack([thresh_mask]*3, dim=-1) # entropy 작은것들만 살림.
+        cosine = cosine * thresh_mask.unsqueeze(-1)
+        positive = torch.exp(cosine[x_ind, flatten_gt[:,0]] / self.t) 
+        # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
+        sum_all = torch.sum(torch.exp(cosine)/self.t, dim=-1) # (BHW, )
+        loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)) 
+        
+        if self.orthogonal_reg_weight > 0:
+            codebook = self.embedding.weight
+            orthogonal_reg_loss = orthogonal_loss_fn(codebook)
+            loss = loss + orthogonal_reg_loss * self.orthogonal_reg_weight
+        return loss
+    
+    def _kmeans_init(self, flatten_x):    
+        if self.initted:
+            return
+        
+        embed, cluster_size = kmeans(
+            flatten_x,
+            self.num_classes,
+            num_iters=10,
+            use_cosine_sim=False # l1norm 해줌
+        )
+        
+        self.embedding.weight.data.copy_(embed[0])
+        self.initted = True
+        

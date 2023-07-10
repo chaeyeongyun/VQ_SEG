@@ -1,0 +1,58 @@
+{   
+    "project_name":"semiweednet",
+    "wandb_logging":true,
+    "num_classes":3,
+    "pixel_to_label":{
+        "0":0,
+        "128":1,
+        "255":2
+    },
+    "resize":448,
+    "model":{
+        "name":"semiweednet",
+        "params":{
+            "encoder_name":"resnet50",
+            "num_classes":3,
+            "depth": 5,
+            "encoder_weights":"imagenet"
+            }
+        },
+    "train":{
+        "data_dir":"../data/semi_sup_data/CWFID/num30",
+        "save_dir":"../drive/MyDrive/semi_sup_train/CWFID",
+        "device":0,
+        "num_epochs":400,
+        "only_sup_epochs":0,
+        "batch_size":4,
+        "learning_rate":1e-4,
+        "lr_scheduler":{
+            "name":"cosineannealing",
+            "min_lr":1e-7,
+            "warmup_steps":0
+        },
+        "half":true,
+        "init_weights":true,
+        "bn_eps":1e-5,
+        "bn_momentum":0.1,
+        "criterion":{
+            "name":"dice_loss"
+        },
+        "ce_loss_weight":1,
+        "dc_loss_weight": 0.7,
+        "unsup_loss_drop_percent":20,
+        "resume":null,
+        "save_img":true,
+        "save_txt":true,
+        "save_as_tar":false,
+        "wandb_config":["batch_size", "num_epochs"],
+        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "cps_loss", "commitment_loss", "prototype_loss", "crop_iou", "weed_iou", "back_iou"],
+        "wandb_metrics":["loss", "miou"] 
+    },
+    "test":{
+        "data_dir":"../data/semi_sup_data/CWFID/num30",
+        "save_dir":"../drive/MyDrive/semi_sup_test/CWFID",
+        "device":0,
+        "batch_size":1,
+        "weights":"../drive/MyDrive/semi_sup_train/CWFID/"
+    }
+}
