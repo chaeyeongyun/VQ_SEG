@@ -141,16 +141,16 @@ class OBIADataset(Dataset):
         self.target_resize = target_resize
         self.target_files = glob(osp.join(data_dir, "target", "*.png")) +glob(osp.join(data_dir, "OBIA", "*.png"))
         
-        if batch_size is not None and len(self.filenames) % batch_size != 0:
-                self.filenames = self.filenames + self.filenames[0:batch_size-len(self.filenames) % batch_size]
+        if batch_size is not None and len(self.target_files) % batch_size != 0:
+                self.target_files = self.target_files + self.target_files[0:batch_size-len(self.target_files) % batch_size]
                 
     def __len__(self):
-        return len(self.filenames)
+        return len(self.target_files)
     
     def __getitem__(self, index):
         filename = osp.split(self.target_files[index])[-1]
         img = Image.open(os.path.join(self.img_dir, filename)).convert('RGB')
-        target = Image.open(os.path.join(self.target_dir, filename)).convert('L')
+        target = Image.open(self.target_files[index]).convert('L')
 
         if self.resize is not None:
             img = img.resize(self.resize, resample=Image.BILINEAR)
