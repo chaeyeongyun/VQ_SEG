@@ -27,7 +27,7 @@ from loss import make_loss
 from loss.dc_loss import DCLoss
 from measurement import Measurement
 
-def overlapped_patches(ul_input:torch.Tensor, overlap_size=300):
+def overlapped_patches(ul_input:torch.Tensor, overlap_size=240):
     b, c, h, w = ul_input.shape
     add = overlap_size // 3
     patch_size = overlap_size + add
@@ -224,7 +224,7 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     cfg.train.wandb_log.append('test_miou')
-    cfg.wandb_logging=False
-    cfg.project_name = "debug"
-    cfg.resize = 64
+    # cfg.wandb_logging=False
+    # cfg.project_name = "debug"
+    # cfg.resize = 64
     train(cfg)

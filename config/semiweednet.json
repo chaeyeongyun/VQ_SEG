@@ -19,7 +19,7 @@
         },
     "train":{
         "data_dir":"../data/semi_sup_data/CWFID/num30",
-        "save_dir":"../drive/MyDrive/semi_sup_train/CWFID",
+        "save_dir":"../drive/MyDrive/related_work/CWFID",
         "device":0,
         "num_epochs":400,
         "only_sup_epochs":0,
