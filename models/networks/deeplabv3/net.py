@@ -68,9 +68,11 @@ class DeepLabV3Plus(nn.Module):
         )
         
     def forward(self, x):
+        input_shape = x.shape[-2:]
         features = self.encoder(x)
         decoder_output = self.decoder(*features)
 
         output = self.segmentation_head(decoder_output)
-
+        if input_shape != output.shape[-2:]:
+            output = F.interpolate(output, input_shape, mode='bilinear', align_corners=False)
         return output

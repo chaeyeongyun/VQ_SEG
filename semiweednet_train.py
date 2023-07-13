@@ -1,4 +1,5 @@
 import argparse
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import os
 from itertools import cycle
@@ -195,7 +196,8 @@ def train(cfg):
         
         if logger != None:
             log_txt.write(print_txt)
-            params = [l_input, l_target, pred_sup, ul_input, pred_ul_1]
+            resol = l_input.shape[-2:]
+            params = [l_input, l_target, pred_sup, F.interpolate(ul_input, resol, mode='bilinear'), F.interpolate(pred_ul_1, resol, mode='bilinear')]
             params = [detach_numpy(i) for i in params]
             example = make_example_img(*params)
             logger.image_update(example, f'{epoch}ep')
