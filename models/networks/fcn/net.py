@@ -1,8 +1,6 @@
-import os.path as osp
 from .decoder import FCNHead
 import torch.nn.functional as F
 from models.encoders import make_encoder
-import fcn
 import numpy as np
 import torch
 import torch.nn as nn
