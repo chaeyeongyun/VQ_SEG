@@ -84,12 +84,12 @@ def train(cfg):
                                     total_iters=len(trainloader)*num_epochs,
                                     warmup_steps=len(trainloader)*cfg.lr_sched_cfg.warmup_epoch)
     elif cfg.train.lr_scheduler.name == 'cosineannealing':
-        # lr_sched_cfg = cfg.train.lr_scheduler
-        # lr_scheduler = CosineAnnealingLR(start_lr = cfg.train.learning_rate, min_lr=lr_sched_cfg.min_lr, total_iters=len(trainloader)*num_epochs, warmup_steps=lr_sched_cfg.warmup_steps)
-        warmup_epochs=3
-        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epochs-warmup_epochs, eta_min=1e-7)
-        lr_scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=warmup_epochs, after_scheduler=cosine_scheduler)
-        lr_scheduler.step()
+        lr_sched_cfg = cfg.train.lr_scheduler
+        lr_scheduler = CosineAnnealingLR(start_lr = cfg.train.learning_rate, min_lr=lr_sched_cfg.min_lr, total_iters=len(trainloader)*num_epochs, warmup_steps=lr_sched_cfg.warmup_steps)
+        # warmup_epochs=3
+        # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epochs-warmup_epochs, eta_min=1e-7)
+        # lr_scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=warmup_epochs, after_scheduler=cosine_scheduler)
+        # lr_scheduler.step()
     
     
         
@@ -121,12 +121,12 @@ def train(cfg):
             with torch.cuda.amp.autocast(enabled=half):
                 loss = criterion(pred, l_target)
                 
-                # ## learning rate update
-                # current_idx = epoch * len(trainloader) + batch_idx
-                # learning_rate = lr_scheduler.get_lr(current_idx)
-                # # update the learning rate
-                # optimizer.param_groups[0]['lr'] = learning_rate
-                learning_rate = optimizer.param_groups[0]['lr']
+                ## learning rate update
+                current_idx = epoch * len(trainloader) + batch_idx
+                learning_rate = lr_scheduler.get_lr(current_idx)
+                # update the learning rate
+                optimizer.param_groups[0]['lr'] = learning_rate
+                # learning_rate = optimizer.param_groups[0]['lr']
                 
                 
             scaler.scale(loss).backward()

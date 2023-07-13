@@ -1,4 +1,5 @@
 import os
+import os.path as osp
 import random
 import numpy as np
 from PIL import Image
@@ -123,3 +124,41 @@ class SalientDataset(Dataset):
         if target is None:
             return {'filename':filename, 'img':img, 'salient_map':salient_map}
         return {'filename':filename, 'img':img, 'target':target, 'salient_map':salient_map}
+    
+class OBIADataset(Dataset):
+    def __init__(self, data_dir:str, batch_size:int=None, resize:int=None, target_resize:bool=True):
+        super().__init__()
+        if type(resize)==int:
+            self.resize = (resize, resize)
+        elif type(resize) in [tuple, list]:
+            self.resize = resize
+        elif resize==None:
+            self.resize = None
+        else:
+            raise ValueError(f"It's invalid type of resize {type(resize)}")
+        
+        self.img_dir = os.path.join(data_dir, 'input')
+        self.target_resize = target_resize
+        self.target_files = glob(osp.join(data_dir, "target", "*.png")) +glob(osp.join(data_dir, "OBIA", "*.png"))
+        
+        if batch_size is not None and len(self.filenames) % batch_size != 0:
+                self.filenames = self.filenames + self.filenames[0:batch_size-len(self.filenames) % batch_size]
+                
+    def __len__(self):
+        return len(self.filenames)
+    
+    def __getitem__(self, index):
+        filename = osp.split(self.target_files[index])[-1]
+        img = Image.open(os.path.join(self.img_dir, filename)).convert('RGB')
+        target = Image.open(os.path.join(self.target_dir, filename)).convert('L')
+
+        if self.resize is not None:
+            img = img.resize(self.resize, resample=Image.BILINEAR)
+            if self.target_resize and target is not None:
+                target = target.resize(self.resize, resample=Image.NEAREST)
+        
+        img = TF.to_tensor(img)
+        target = torch.from_numpy(np.array(target)) if target is not None else None
+        if target is None:
+            return {'filename':filename, 'img':img}
+        return {'filename':filename, 'img':img, 'target':target}
