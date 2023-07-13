@@ -1,0 +1,52 @@
+{   
+    "project_name":"OBIA_CWFID",
+    "wandb_logging":true,
+    "num_classes":3,
+    "pixel_to_label":{
+        "0":0,
+        "128":1,
+        "255":2
+    },
+    "resize":512,
+    "model":{
+        "name":"obiafcn",
+        "params":{
+            "encoder_name":"vgg19",
+            "num_classes":3,
+            "encoder_weights":"imagenet"
+            }
+    },
+    "train":{
+        "data_dir":"../data/cropweed_total/CWFID/seg",
+        "save_dir":"../drive/MyDrive/only_sup_train/CWFID",
+        "device":0,
+        "num_epochs":400,
+        "batch_size":8,
+        "learning_rate":1e-4,
+        "lr_scheduler":{
+            "name":"cosineannealing",
+            "min_lr":1e-7,
+            "warmup_steps":0
+        },
+        "half":true,
+        "init_weights":true,
+        "bn_eps":1e-5,
+        "bn_momentum":0.1,
+        "criterion":{
+            "name":"dice_loss"
+        },
+        "save_img":true,
+        "save_txt":true,
+        "save_as_tar":false,
+        "wandb_config":["batch_size", "num_epochs"],
+        "wandb_log":["loss", "learning_rate", "miou", "crop_iou", "weed_iou", "back_iou"],
+        "wandb_metrics":["loss", "miou"] 
+        },
+    "test":{
+        "data_dir":"../data/semi_sup_data/CWFID/num30",
+        "save_dir":"../drive/MyDrive/only_sup_test/CWFID",
+        "device":0,
+        "batch_size":1,
+        "weights":"../drive/MyDrive/only_sup_train/CWFID/"
+    }
+}
