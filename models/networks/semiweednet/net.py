@@ -33,12 +33,25 @@ class SemiWeedNet(nn.Module):
             kernel_size=1,
             upsampling=upsampling
         )
-        
-    def forward(self, x):
+        self.mlp = nn.Sequential(
+            nn.Linear(encoder_channels[-1], encoder_channels[-1]), 
+            nn.ReLU(), 
+            nn.Linear(encoder_channels[-1],128)
+            )
+    
+    def forward(self, x, issup=False):
         features = self.encoder(x)
+        last_feature = features[-1]
         features[-1] = self.ska(features[-1])        
         decoder_output = self.decoder(*features)
 
         output = self.segmentation_head(decoder_output)
-
-        return output
+        if self.training and not issup:
+            mlp_out = F.adaptive_avg_pool2d(last_feature, output_size=(1,1))
+            mlp_out = torch.flatten(mlp_out, 1)
+            mlp_out = self.mlp(mlp_out)
+            return output, mlp_out
+        
+        return output, None
+    
+    

@@ -13,8 +13,8 @@ class ConvBlock(nn.Module):
                  in_channels,
                  out_channels,
                  kernel_size,
-                 stride,
-                 padding,
+                 stride=1,
+                 padding=0,
                  dilation=1,
                  groups=1,
                  bias=False,
@@ -86,7 +86,7 @@ class SKA(nn.Module):
                 out_channels=out_channels,
                 kernel_size=(2*(i+1)+1),
                 stride=stride,
-                padding=1,
+                padding=i+1,
                 groups=in_channels)
                 ) # depthwise
         self.branches = nn.ModuleList(branches)

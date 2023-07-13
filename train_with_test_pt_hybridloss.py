@@ -40,10 +40,15 @@ def test(test_loader, model, measurement:Measurement, cfg):
     print(f'test miou : {miou}')
     return miou
 # 일단 no cutmix version
+def entropy_mask(pred, pseudo, th=0.7):
+    pred_prob = torch.softmax(pred, dim=1)
+    pred_max = pred_prob.max(dim=1)[0]
+    return torch.where(pred_max > th, pseudo, 255)
+
 def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
-        logger_name = cfg.project_name+str(len(os.listdir(cfg.train.save_dir)))
+        logger_name = cfg.project_name+"_hybrid_"+str(len(os.listdir(cfg.train.save_dir)))
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
         ckpoints_dir = os.path.join(save_dir, 'ckpoints')
@@ -75,8 +80,8 @@ def train(cfg):
                         mode='fan_in', nonlinearity='relu')
     loss_weight = cfg.train.criterion.get("weight", None)
     loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
-    ce_loss = nn.CrossEntropyLoss(weight=loss_weight)
-    dice_loss = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight)
+    ce_loss = nn.CrossEntropyLoss(weight=loss_weight, ignore_index=255)
+    dice_loss = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight, ignore_index=255)
     
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
     unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled',  batch_size=batch_size, resize=cfg.resize)
@@ -167,8 +172,10 @@ def train(cfg):
             
             with torch.cuda.amp.autocast(enabled=half):
                 ## cps loss
-                ## cps loss
-                cps_loss = ce_loss(pred_1, pseudo_2) + ce_loss(pred_2, pseudo_1) + dice_loss(pred_1, pseudo_2) + dice_loss(pred_2, pseudo_1)
+                ### celoss에 대서 entropy 제한 ####
+                filt_entropy_1 = entropy_mask(pred_1, pseudo_1)
+                filt_entropy_2 = entropy_mask(pred_2, pseudo_2)
+                cps_loss = 0.5*ce_loss(pred_1, filt_entropy_2) + 0.5*ce_loss(pred_2, filt_entropy_1) + dice_loss(pred_1, filt_entropy_2) + dice_loss(pred_2, filt_entropy_1)
                 ## supervised loss
                 sup_loss_1 = 0.5*ce_loss(pred_sup_1, l_target) + dice_loss(pred_sup_1, l_target)
                 sup_loss_2 = 0.5*ce_loss(pred_sup_2, l_target) + dice_loss(pred_sup_2, l_target)
@@ -290,6 +297,7 @@ if __name__ == "__main__":
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     # cfg.train.half=False
+    # cfg.train.device = -1
     # cfg.resize = 256
     # train(cfg)
     # cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
@@ -300,12 +308,12 @@ if __name__ == "__main__":
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
     # cfg.project_name = cfg.project_name+"_no_norm"
-    cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    cfg.train.wandb_log.append('test_miou')
+    # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
+    # cfg.train.wandb_log.append('test_miou')
     # cfg.wandb_logging = False
-    cfg.model.params.encoder_weights = "imagenet"
+    # cfg.model.params.encoder_weights = "imagenet"
+    cfg.train.wandb_log.append('test_miou')
     train(cfg)
     # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
-    # cfg.train.wandb_log.append('test_miou')
     # cfg.model.params.encoder_weights = None
     # train(cfg)

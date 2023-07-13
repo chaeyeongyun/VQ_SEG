@@ -22,11 +22,21 @@ from utils.lr_schedulers import WarmUpPolyLR, CosineAnnealingLR
 from utils.seed import seed_everything
 
 from data.dataset import BaseDataset
-
+from data.augmentations import similarity_transform
 from loss import make_loss
+from loss.dc_loss import DCLoss
 from measurement import Measurement
-#TODO: 
-def overlapped_patches(ul_input:torch.Tensor):
+
+def overlapped_patches(ul_input:torch.Tensor, overlap_size=300):
+    b, c, h, w = ul_input.shape
+    add = overlap_size // 3
+    patch_size = overlap_size + add
+    h_c, w_c = h//2, w//2
+    p1_y1x1 = (h_c - overlap_size//2 - add, w_c - overlap_size//2 - add)
+    p2_y1x1 = (h_c - overlap_size//2, w_c - overlap_size//2)
+    patch_1 = ul_input[:, :, p1_y1x1[0]:p1_y1x1[0]+patch_size, p1_y1x1[1]:p1_y1x1[1]+patch_size]
+    patch_2 = ul_input[:, :, p2_y1x1[0]:p2_y1x1[0]+patch_size, p2_y1x1[1]:p2_y1x1[1]+patch_size]
+    return patch_1, patch_2
     
 def test(test_loader, model, measurement:Measurement, cfg):
     sum_miou = 0
@@ -42,6 +52,7 @@ def test(test_loader, model, measurement:Measurement, cfg):
     miou = sum_miou / len(test_loader)
     print(f'test miou : {miou}')
     return miou
+
 # 일단 no cutmix version
 def train(cfg):
     seed_everything()
@@ -75,8 +86,8 @@ def train(cfg):
         
     loss_weight = cfg.train.criterion.get("weight", None)
     loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
-    criterion = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight)
-    
+    criterion = nn.CrossEntropyLoss()
+    ul_criterion = DCLoss()
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
     unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled',  batch_size=batch_size, resize=cfg.resize)
     
@@ -107,12 +118,12 @@ def train(cfg):
     for epoch in range(num_epochs):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
         crop_iou, weed_iou, back_iou = 0, 0, 0
-        sum_cps_loss, sum_sup_loss_1, sum_sup_loss_2 = 0, 0, 0
-        sum_commitment_loss = 0
+        sum_ce_loss, sum_dc_loss = 0, 0
         sum_loss = 0
         sum_miou = 0
         ep_start = time.time()
         pbar =  tqdm(range(len(unsup_loader)))
+        model.train()
         for batch_idx in pbar:
             sup_dict, unsup_dict = next(trainloader)
             l_input, l_target = sup_dict['img'], sup_dict['target']
@@ -123,41 +134,26 @@ def train(cfg):
             l_input = l_input.to(device)
             l_target = l_target.to(device)
             ul_input = ul_input.to(device)
+            ul_patch_1, ul_patch_2 = overlapped_patches(ul_input)
+            ul_patch_1, ul_patch_2 = similarity_transform(ul_patch_1)[0], similarity_transform(ul_patch_2)[0]
      
             with torch.cuda.amp.autocast(enabled=half):
-                pred_sup_1, commitment_loss_l1, code_usage_l1 = model(l_input)
-                
+                pred_sup = model(l_input, issup=True)[0]
                 ## predict in unsupervised manner ##
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1 = model(ul_input)
-                
-                if batch_idx == 0:
-                    sum_code_usage = torch.zeros_like(code_usage_l1)
-            ## cps loss ##
-            pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
-            pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
-            # pseudo label
-            pseudo_1 = torch.argmax(pred_1, dim=1).long()
-            pseudo_2 = torch.argmax(pred_2, dim=1).long()
-            
+                pred_ul_1, ul_mlp_1 = model(ul_patch_1)
+                pred_ul_2, ul_mlp_2 = model(ul_patch_2)
             
             with torch.cuda.amp.autocast(enabled=half):
-                ## cps loss
-                cps_loss = criterion(pred_1, pseudo_2) + criterion(pred_2, pseudo_1)
                 ## supervised loss
-                sup_loss_1 = criterion(pred_sup_1, l_target)
-                sup_loss_2 = criterion(pred_sup_2, l_target)
-                sup_loss = sup_loss_1 + sup_loss_2
-                
-                commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
-                
+                ce_loss = criterion(pred_sup, l_target)
+                dc_loss = ul_criterion(ul_mlp_1, ul_mlp_2)
                 ## learning rate update
                 current_idx = epoch * len(unsup_loader) + batch_idx
                 learning_rate = lr_scheduler.get_lr(current_idx)
                 # update the learning rate
                 optimizer.param_groups[0]['lr'] = learning_rate
                 
-                
-                loss = sup_loss + ce_loss_weight*ce_loss + dc_loss_weight*dc_loss
+                loss = ce_loss_weight*ce_loss + dc_loss_weight*dc_loss
                 
                 
             scaler.scale(loss).backward()
@@ -165,76 +161,54 @@ def train(cfg):
             scaler.update()
             
             
-            step_miou, iou_list = measurement.miou(measurement._make_confusion_matrix(pred_sup_1.detach().cpu().numpy(), l_target.detach().cpu().numpy()))
+            step_miou, iou_list = measurement.miou(measurement._make_confusion_matrix(pred_sup.detach().cpu().numpy(), l_target.detach().cpu().numpy()))
             sum_miou += step_miou
             sum_loss += loss.item()
-            sum_cps_loss += cps_loss.item()
-            sum_sup_loss_1 += sup_loss_1.item()
-            sum_sup_loss_2 += sup_loss_2.item()
-            sum_commitment_loss += commitment_loss.item()
+            sum_ce_loss += ce_loss.item()
+            sum_dc_loss += dc_loss.item()
+            sum_loss += loss.item()
             back_iou += iou_list[0]
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
-                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
+                            + f"miou={step_miou:.4f}, ce_loss={ce_loss.item():.4f}, dc_loss={dc_loss.item():.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
         
         ## end epoch ## 
-        code_usage = (sum_code_usage / len(unsup_loader)).tolist()
-        if isinstance(code_usage, float): code_usage = [code_usage]
         back_iou, weed_iou, crop_iou = back_iou / len(unsup_loader), weed_iou / len(unsup_loader), crop_iou / len(unsup_loader)
-        cps_loss = sum_cps_loss / len(unsup_loader)
-        sup_loss_1 = sum_sup_loss_1 / len(unsup_loader)
-        sup_loss_2 = sum_sup_loss_2 / len(unsup_loader)
-        commitment_loss = sum_commitment_loss / len(unsup_loader)
+        ce_loss = sum_ce_loss / len(unsup_loader)
+        dc_loss = sum_dc_loss / len(unsup_loader)
         loss = sum_loss / len(unsup_loader)
         miou = sum_miou / len(unsup_loader)
         
         print_txt = f"[Epoch{epoch}]" \
-                            + f"miou={miou}, sup_loss_1={sup_loss_1:.4f}, sup_loss_2={sup_loss_2:.4f}, cps_loss={cps_loss:.4f}"
+                            + f"miou={miou}, ce_loss={ce_loss:.4f}, dc_loss={dc_loss:.4f}"
         print(print_txt)
         test_miou = test(test_loader, model, measurement, cfg)
         print(f"test_miou : {test_miou:.4f}")
         if best_miou <= test_miou:
             best_miou = test_miou
             if logger is not None:
-                save_ckpoints(model.state_dict(),
-                            epoch,
-                            batch_idx,
-                            optimizer.state_dict(),
-                            os.path.join(ckpoints_dir, f"best_test_miou.pth"))
+                torch.save(model.state_dict(), os.path.join(ckpoints_dir, f"best_test_miou.pth"))
         
         if logger != None:
             log_txt.write(print_txt)
-            params = [l_input, l_target, pred_sup_1, ul_input, pred_ul_1]
+            params = [l_input, l_target, pred_sup, ul_input, pred_ul_1]
             params = [detach_numpy(i) for i in params]
             example = make_example_img(*params)
             logger.image_update(example, f'{epoch}ep')
             if cfg.train.save_img:
                 save_img(img_dir, f'output_{epoch}ep.png', example)
             if epoch % 10 == 0:
-                save_ckpoints(model.state_dict(),
-                            
-                            epoch,
-                            batch_idx,
-                            optimizer.state_dict(),
-                            
-                            os.path.join(ckpoints_dir, f"{epoch}ep.pth"))
-            save_ckpoints(model.state_dict(),
-                        
-                        epoch,
-                        batch_idx,
-                        optimizer.state_dict(),
-                        os.path.join(ckpoints_dir, f"last.pth"))
+               torch.save(model.state_dict(),  os.path.join(ckpoints_dir, f"{epoch}ep.pth"))
+            torch.save(model.state_dict(), os.path.join(ckpoints_dir, f"last.pth"))
             # wandb logging
             for key in logger.config_dict.keys():
                 logger.config_dict[key] = eval(key)
             for key in logger.log_dict.keys():
-                if key=="code_usage":
-                    logger.temp_update(list_to_separate_log(l=eval(key), name=key))
-                else:logger.log_dict[key] = eval(key)
+                logger.log_dict[key] = eval(key)
             
             logger.logging(epoch=epoch)
             logger.config_update()
@@ -246,9 +220,11 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqcanet.json')
+    parser.add_argument('--config_path', default='./config/semiweednet.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     cfg.train.wandb_log.append('test_miou')
-    
+    cfg.wandb_logging=False
+    cfg.project_name = "debug"
+    cfg.resize = 64
     train(cfg)

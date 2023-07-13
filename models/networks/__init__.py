@@ -2,6 +2,7 @@ from .unet.net import *
 from .deeplabv3 import *
 from .vqvaev2.net import *
 from .modified_vqunet import *
+from .semiweednet import *
 network_dict = {
     "deeplabv3":DeepLabV3,
     "deeplabv3plus":DeepLabV3Plus,
@@ -28,7 +29,8 @@ network_dict = {
      "vqreptunet":VQRePTUnet,
      "vqreeuptunet":VQReEuPTUnet,
       "vqreptunet1x1":VQRePTUnet1x1,
-      "vqretemptunet":VQReTemPTUnet
+      "vqretemptunet":VQReTemPTUnet,
+      "semiweednet":SemiWeedNet
 }
 
 def make_model(model_cfg:dict):

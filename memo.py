@@ -1,6 +1,22 @@
+def change1(parent):
+    parent = parent
+    parent[1] = 100
+def change2(parent):
+    parent[1] = 100
+def solution():
+    parent = [1, 2, 3, 4, 5]
+    change2(parent)
+    print(parent)
 
-import models
-from utils.load_config import get_config_from_json
-cfg = get_config_from_json("./config/vqreptunet1x1.json")
-model_1 = models.networks.make_model(cfg.model)
-a=1
+solution()
+
+def change3(val):
+    val = val
+    val = 4
+def change4(val):
+    val = 4
+def solution2():
+    val  = 1
+    change4(val)
+    print(val)
+solution2()
