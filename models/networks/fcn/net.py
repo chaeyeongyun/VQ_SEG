@@ -39,8 +39,8 @@ class FCN32s(nn.Module):
     def forward(self, x):
         input_shape = x.shape[-2:]
         output = self.encoder(x)
-        output = self.decoder(output)
-        if input_shape != output.shape[-2:]
+        output = self.decoder(output[-1])
+        if input_shape != output.shape[-2:]:
             output = F.interpolate(output, size=input_shape, mode="bilinear", align_corners=False)
         return output
     

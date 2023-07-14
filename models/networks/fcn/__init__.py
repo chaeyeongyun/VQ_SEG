@@ -1,1 +1,1 @@
-from.net import *
+from .net import *

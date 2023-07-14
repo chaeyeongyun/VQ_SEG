@@ -17,15 +17,15 @@
             }
     },
     "train":{
-        "data_dir":"../data/cropweed_total/CWFID/seg",
-        "save_dir":"../drive/MyDrive/only_sup_train/CWFID",
+        "data_dir":"../data/semi_sup_data/CWFID/num30",
+        "save_dir":"../drive/MyDrive/related_work/CWFID",
         "device":0,
         "num_epochs":400,
         "batch_size":8,
-        "learning_rate":1e-4,
+        "learning_rate":5e-5,
         "lr_scheduler":{
             "name":"cosineannealing",
-            "min_lr":1e-7,
+            "min_lr":1e-8,
             "warmup_steps":0
         },
         "half":true,
@@ -33,7 +33,7 @@
         "bn_eps":1e-5,
         "bn_momentum":0.1,
         "criterion":{
-            "name":"dice_loss"
+            "name":"cross_entropy"
         },
         "save_img":true,
         "save_txt":true,
@@ -44,7 +44,7 @@
         },
     "test":{
         "data_dir":"../data/semi_sup_data/CWFID/num30",
-        "save_dir":"../drive/MyDrive/only_sup_test/CWFID",
+        "save_dir":"../drive/MyDrive/related_work/CWFID",
         "device":0,
         "batch_size":1,
         "weights":"../drive/MyDrive/only_sup_train/CWFID/"

@@ -66,7 +66,7 @@ def train(cfg):
     device = device_setting(cfg.train.device)
     measurement = Measurement(num_classes)
     
-    model = FCN32s(*cfg.model.params).to(device)
+    model = FCN32s(**cfg.model.params).to(device)
 
     criterion = make_loss(cfg.train.criterion.name, num_classes)
     
@@ -141,7 +141,6 @@ def train(cfg):
             if logger != None:
                 log_txt.write(print_txt)
         
-        lr_scheduler.step()
         ## end epoch ## 
         back_iou, weed_iou, crop_iou = back_iou / len(trainloader), weed_iou / len(trainloader), crop_iou / len(trainloader)
         loss = sum_loss / len(trainloader)
@@ -189,8 +188,10 @@ if __name__ == "__main__":
     parser.add_argument('--config_path', default='./config/obia_CWFID.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
+    # cfg.project_name = "debug"
     # cfg.wandb_logging = False
     # cfg.train.device = -1
     # cfg.resize = 64
+    # cfg.half = False
     cfg.train.wandb_log.append('test_miou')
     train(cfg)
