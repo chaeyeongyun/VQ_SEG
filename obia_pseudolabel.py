@@ -3,6 +3,7 @@ import os.path as osp
 import numpy as np
 from skimage.feature import local_binary_pattern
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
 from fast_slic import Slic
 from PIL import Image
 from glob import glob
@@ -18,7 +19,7 @@ def img_to_label(target_img, pixel_to_label_dict:dict):
 
 def make_feature(image, image_gray, gt_image):
     label = np.zeros((image.shape[0], image.shape[1], 1))
-    slic = Slic(num_components=1600, compactness=0.5)
+    slic = Slic(num_components=1600, compactness=10)
     assignment = slic.iterate(image) 
     clusters = np.unique(assignment).tolist()
     ## LBP ###
@@ -39,7 +40,7 @@ def make_feature(image, image_gray, gt_image):
     featarray = np.stack(l)
     return featarray, train_y, assignment
 
-def main(image_root="/content/data/semi_sup_data/CWFID/num30/train",save_path = "/content/data/semi_sup_data/CWFID/num30/train/OBIA2"):
+def main(image_root="/content/data/semi_sup_data/CWFID/num30/train",save_path = "/content/data/semi_sup_data/CWFID/num30/train/OBIA3"):
     target_filenames = os.listdir(osp.join(image_root, "target"))
     os.makedirs(save_path, exist_ok=True)
     feat_list = []
@@ -64,7 +65,8 @@ def main(image_root="/content/data/semi_sup_data/CWFID/num30/train",save_path = 
 
     features = np.concatenate(feat_list, axis=0)
     Y_train = np.concatenate(y_list, axis=0)
-    model = RandomForestClassifier()
+    # model = RandomForestClassifier()
+    model = SVC()
     model.fit(features, Y_train)
     ## TODO: unlabeled data labeling
     image_filenames = os.listdir(osp.join(image_root, "input"))
