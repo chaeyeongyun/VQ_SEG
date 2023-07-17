@@ -42,7 +42,7 @@ def test(test_loader, model, measurement:Measurement, cfg):
 # 일단 no cutmix version
 def entropy_mask(pred, pseudo, drop_percent):
     prob = torch.softmax(pred, dim=1) # B, 3, H, W
-    entropy = -torch.sum(prob*torch.log(prob+1e-10), dim=1, keepdim=True) # (B, 1, H, W)
+    entropy = -torch.sum(prob*torch.log(prob+1e-10), dim=1) # (B, 1, H, W)
     thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), drop_percent)
     return torch.where(entropy<thresh, pseudo, 255)
 
