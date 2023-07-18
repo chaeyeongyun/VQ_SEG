@@ -4,7 +4,7 @@ import os
 from itertools import cycle
 from tqdm import tqdm
 import time
-import numpy as np
+import wandb
 
 import torch
 import torch.nn as nn
@@ -40,16 +40,17 @@ def test(test_loader, model, measurement:Measurement, cfg):
     print(f'test miou : {miou}')
     return miou
 # 일단 no cutmix version
-def entropy_mask(pred, pseudo, drop_percent):
-    prob = torch.softmax(pred, dim=1) # B, 3, H, W
-    entropy = -torch.sum(prob*torch.log(prob+1e-10), dim=1) # (B, 1, H, W)
-    thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), drop_percent)
-    return torch.where(entropy<thresh, pseudo, 255)
+def entropy_mask(pred, pseudo, th=0.7):
+    pred_prob = torch.softmax(pred, dim=1)
+    pred_max = pred_prob.max(dim=1)[0]
+    return torch.where(pred_max > th, pseudo, 255)
 
 def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
-        logger_name = cfg.project_name+"_hybridv2_"+str(len(os.listdir(cfg.train.save_dir)))
+        ### name
+        logger_name = cfg.project_name+"1x1conv"
+        ### name
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
         ckpoints_dir = os.path.join(save_dir, 'ckpoints')
@@ -174,8 +175,8 @@ def train(cfg):
             with torch.cuda.amp.autocast(enabled=half):
                 ## cps loss
                 ### celoss에 대서 entropy 제한 ####
-                filt_entropy_1 = entropy_mask(pred_1, pseudo_1, drop_percent)
-                filt_entropy_2 = entropy_mask(pred_2, pseudo_2, drop_percent)
+                filt_entropy_1 = entropy_mask(pred_1, pseudo_1)
+                filt_entropy_2 = entropy_mask(pred_2, pseudo_2)
                 cps_loss = 0.5*ce_loss(pred_1, filt_entropy_2) + 0.5*ce_loss(pred_2, filt_entropy_1) + dice_loss(pred_1, filt_entropy_2) + dice_loss(pred_2, filt_entropy_1)
                 ## supervised loss
                 sup_loss_1 = 0.5*ce_loss(pred_sup_1, l_target) + dice_loss(pred_sup_1, l_target)
@@ -290,7 +291,8 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
+    # parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
+    parser.add_argument('--config_path', default='./config/vqreptunetangular.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug

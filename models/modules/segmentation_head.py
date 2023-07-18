@@ -1,10 +1,18 @@
 import math
+import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
 from utils.seg_tools import label_to_onehot
+
+def orthogonal_loss_fn(t):
+    # eq (2) from https://arxiv.org/abs/2112.00384
+    n, d = t.shape[:2]
+    normed_codes = l2norm(t, dim=-1)
+    cosine_sim = torch.einsum('i d, j d -> i j', normed_codes, normed_codes)
+    return (cosine_sim ** 2).sum() / (n ** 2) - (1 / n)
 
 def l1norm(t:torch.Tensor, dim):
     return F.normalize(t, p=1, dim=dim)
@@ -177,23 +185,24 @@ class AngularSegmentationHeadv2(nn.Module):
                  in_channels, 
                  out_channels,
                  num_classes, 
-                 embedding_dim, 
                  scale, 
                  margin, 
                  init='kmeans', 
-                 kernel_size=3, 
-                 upsampling=2, 
+                 kernel_size=1, 
+                 upsampling=1, 
                  activation=nn.Softmax2d,
-                 easy_margin=True):
+                 easy_margin=True,
+                 orthogonal_reg_weight=0):
         super().__init__()
         self.num_classes = num_classes
         self.scale = scale
         self.margin = margin
+        self.orthogonal_reg_weight = orthogonal_reg_weight
         
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=kernel_size // 2)
         self.upsampling = nn.UpsamplingBilinear2d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
         self.embedding = nn.Embedding(num_embeddings=num_classes,
-                                      embedding_dim=embedding_dim)
+                                      embedding_dim=out_channels)
         self.activation = activation()
         self.init = init
         self.initted = False
@@ -214,15 +223,15 @@ class AngularSegmentationHeadv2(nn.Module):
         self.th = math.cos(math.pi - margin)
         self.mm = math.sin(math.pi - margin) * margin
         
-    def forward(self, x, gt):
+    def forward(self, x, gt, percent, entropy):
         x = self.conv(x)  
         x = self.upsampling(x)
         x_b, x_c, x_h, x_w = x.shape[:]
         device = x.device
         flatten_x = rearrange(x, 'b c h w -> (b h w) c')
         # l1 norm
-        self.embedding.weight.data = l1norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
-        flatten_x = l1norm(flatten_x, dim=-1)
+        self.embedding.weight.data = l2norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
+        flatten_x = l2norm(flatten_x, dim=-1)
         if not self.initted and self.init == 'kmeans':
             self._kmeans_init(flatten_x)
         # cosine
@@ -247,7 +256,11 @@ class AngularSegmentationHeadv2(nn.Module):
             # cosine = cosine + self.margin * flatten_gt
             # scale
             cosine = self.scale * cosine
-            
+             ## entropy filtering ##
+            with torch.no_grad():
+                thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), percent) # scalar
+                thresh_mask = torch.le(entropy, thresh)
+            cosine = cosine * thresh_mask.unsqueeze(-1)
             positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
             # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
             sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
@@ -255,14 +268,18 @@ class AngularSegmentationHeadv2(nn.Module):
         pred = rearrange(cosine, '(b h w) p -> b h w p', b=x_b, h=x_h, w=x_w, p=self.num_classes)
         pred = rearrange(pred, 'b h w p -> b p h w')
         pred = self.activation(pred)
-        commitment_loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
+        # commitment_loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
         if self.training:
             class_feat =self.embedding.weight.data[gt].permute(0, 4, 2, 3, 1).squeeze(-1)
             class_feat = class_feat.detach() # codebook 쪽 sg 연산
-            commitloss = F.mse_loss(class_feat, x) # encoder update
-            commitment_loss = commitment_loss + commitloss 
-            
-        return pred, loss, commitment_loss
+            commitment_loss = F.mse_loss(class_feat, x) # encoder update
+            # commitment_loss = commitment_loss + commitloss 
+        loss  = loss + commitment_loss
+        if self.orthogonal_reg_weight > 0:
+            codebook = self.embedding.weight
+            orthogonal_reg_loss = orthogonal_loss_fn(codebook)
+            loss = loss + orthogonal_reg_loss * self.orthogonal_reg_weight
+        return pred, loss
     
     def _kmeans_init(self, flatten_x):    
         if self.initted:

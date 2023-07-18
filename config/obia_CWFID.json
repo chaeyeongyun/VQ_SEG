@@ -9,7 +9,7 @@
     },
     "resize":512,
     "model":{
-        "name":"obiafcn",
+        "name":"fcn32s",
         "params":{
             "encoder_name":"vgg19",
             "num_classes":3,
