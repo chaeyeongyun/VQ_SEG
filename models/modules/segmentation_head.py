@@ -192,7 +192,7 @@ class AngularSegmentationHeadv2(nn.Module):
                  upsampling=1, 
                  activation=nn.Softmax2d,
                  easy_margin=True,
-                 orthogonal_reg_weight=0):
+                 orthogonal_reg_weight=1.):
         super().__init__()
         self.num_classes = num_classes
         self.scale = scale

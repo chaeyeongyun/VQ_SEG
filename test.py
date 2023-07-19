@@ -190,8 +190,12 @@ if __name__ == "__main__":
     # cfg_l = ['./config/CWFID_Unet.json', './config/IJRR2017_Unet.json', './config/rice_s_n_w_Unet.json']
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet1x1_hybrid_5/ckpoints/best_test_miou.pth"]
     # cfg_l = ["./config/vqreptunet1x1.json"]
-    w_l = ["../drive/MyDrive/related_work/CWFID/obiafcn_num3010/ckpoints/best_test_miou.pth"]
-    cfg_l  = ["/content/VQ_SEG/config/obia_CWFID.json"]
+    
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnetAngular3x3noentropy/ckpoints/best_test_miou.pth"]
+    cfg_l = ["./config/vqreptunetangular.json"]
+    
+    # w_l = ["../drive/MyDrive/related_work/CWFID/obiafcn_num3010/ckpoints/best_test_miou.pth"]
+    # cfg_l  = ["/content/VQ_SEG/config/obia_CWFID.json"]
     for i in range(len(w_l)):
         # debug
         # cfg.resize=32

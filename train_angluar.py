@@ -49,7 +49,7 @@ def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
         ### name
-        logger_name = cfg.project_name+"1x1conv"
+        logger_name = cfg.project_name+"1x1orthogonal1"
         ### name
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
