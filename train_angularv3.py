@@ -296,7 +296,7 @@ if __name__ == "__main__":
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=64
-    cfg.project_name = 'debug'
+    # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.train.device = -1
