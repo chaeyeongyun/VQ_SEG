@@ -1,6 +1,6 @@
 import math
 import numpy as np
-
+from utils.seg_tools import score_mask
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,8 +17,8 @@ def orthogonal_loss_fn(t):
 def l1norm(t:torch.Tensor, dim):
     return F.normalize(t, p=1, dim=dim)
 
-def l2norm(t):
-    return F.normalize(t, p = 2, dim = -1)
+def l2norm(t, dim):
+    return F.normalize(t, p = 2, dim = dim)
 
 def batched_sample_vectors(samples, num): # kmeans에 sample_fn으로 들어감
     return torch.stack([sample_vectors(sample, num) for sample in samples.unbind(dim = 0)], dim = 0)
@@ -189,10 +189,127 @@ class AngularSegmentationHeadv2(nn.Module):
                  margin, 
                  init='kmeans', 
                  kernel_size=1, 
+                 upsampling=2, 
+                 activation=nn.Softmax2d,
+                 easy_margin=True,
+                 orthogonal_reg_weight=0.):
+        super().__init__()
+        self.num_classes = num_classes
+        self.scale = scale
+        self.margin = margin
+        self.orthogonal_reg_weight = orthogonal_reg_weight
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=kernel_size // 2)
+        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
+        self.embedding = nn.Embedding(num_embeddings=num_classes,
+                                      embedding_dim=out_channels)
+        self.activation = activation()
+        self.init = init
+        self.initted = False
+        if init == 'uniform':
+            # uniform distribution initialization
+            self.embedding.weight.data.uniform_(-1/num_classes, 1/num_classes)
+            self.initted = True
+        elif init == 'normal':
+            self.embedding.weight.data.normal_()
+            self.initted = True
+        elif init == 'kmeans':
+            pass
+        else:
+            raise ValueError('init has to be in [''uniform'', ''normal'', ''kmeans'']')
+        self.easy_margin = easy_margin
+        self.cos_m = math.cos(margin)
+        self.sin_m = math.sin(margin)
+        self.th = math.cos(math.pi - margin)
+        self.mm = math.sin(math.pi - margin) * margin
+        
+    def forward(self, x, gt, percent, entropy):
+        x = self.conv(x)  
+        # x = self.upsampling(x)
+        x_b, x_c, x_h, x_w = x.shape[:]
+        device = x.device
+        flatten_x = rearrange(x, 'b c h w -> (b h w) c') # (BxHxW, C)
+        if not self.initted and self.init == 'kmeans':
+            self._kmeans_init(flatten_x)
+        # l2 norm
+        self.embedding.weight.data = l2norm(self.embedding.weight.data, dim=-1) # (num_classes, feat_num)
+        flatten_x = l2norm(flatten_x, dim=-1)
+
+        # cosine
+        cosine = F.linear(flatten_x, self.embedding.weight) 
+        # cosine = torch.matmul(flatten_x, self.embedding.weight.transpose(0,1))
+        loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
+        if self.training and gt is not None:
+            # gt = label_to_onehot(gt, self.num_classes)
+            gt = gt.unsqueeze(1) if gt.dim()==3 else gt
+            gt = F.interpolate(gt.float(), (x_h, x_w), mode="nearest").long()
+            flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
+            
+            x_ind = torch.arange(x_b*x_h*x_w) 
+            # margin
+            sine = torch.sqrt((1.0 - torch.pow(cosine, 2)).clamp(0, 1))
+            phi = cosine * self.cos_m - sine * self.sin_m
+            if self.easy_margin:
+                phi = torch.where(cosine > 0, phi, cosine)
+            else:
+                phi = torch.where(cosine > self.th, phi, cosine - self.mm)
+            
+            # cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] - self.margin
+            cosine[x_ind, flatten_gt[:,0]] = cosine[x_ind, flatten_gt[:,0]] * phi[x_ind, flatten_gt[:,0]].to(torch.float16)
+            # cosine = cosine + self.margin * flatten_gt
+            # scale
+            cosine = self.scale * cosine
+             ## entropy filtering ##
+            with torch.no_grad():
+                thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), percent) # scalar
+                thresh_mask = torch.le(entropy, thresh)
+            cosine = cosine * thresh_mask.unsqueeze(-1)
+            positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
+            # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
+            sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
+            loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)) 
+        pred = rearrange(cosine, '(b h w) p -> b h w p', b=x_b, h=x_h, w=x_w, p=self.num_classes)
+        pred = rearrange(pred, 'b h w p -> b p h w')
+        pred = self.activation(pred)
+        pred = self.upsampling(pred)
+        # commitment_loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
+        if self.training:
+            class_feat =self.embedding.weight.data[gt].permute(0, 4, 2, 3, 1).squeeze(-1)
+            class_feat = class_feat.detach() # codebook 쪽 sg 연산
+            commitment_loss = F.mse_loss(class_feat, x) # encoder update
+            # commitment_loss = commitment_loss + commitloss 
+            loss  = loss + commitment_loss
+            if self.orthogonal_reg_weight > 0:
+                codebook = self.embedding.weight
+                orthogonal_reg_loss = orthogonal_loss_fn(codebook)
+                loss = loss + orthogonal_reg_loss * self.orthogonal_reg_weight
+        return pred, loss
+    
+    def _kmeans_init(self, flatten_x):    
+        if self.initted:
+            return
+        
+        embed, cluster_size = kmeans(
+            flatten_x,
+            self.num_classes,
+            num_iters=10,
+        )
+        
+        self.embedding.weight.data.copy_(embed[0])
+        self.initted = True
+
+class AngularSegmentationHeadv3(nn.Module):
+    def __init__(self, 
+                 in_channels, 
+                 out_channels,
+                 num_classes, 
+                 scale, 
+                 margin, 
+                 init='kmeans', 
+                 kernel_size=1, 
                  upsampling=1, 
                  activation=nn.Softmax2d,
                  easy_margin=True,
-                 orthogonal_reg_weight=1.):
+                 orthogonal_reg_weight=0.):
         super().__init__()
         self.num_classes = num_classes
         self.scale = scale
@@ -223,7 +340,7 @@ class AngularSegmentationHeadv2(nn.Module):
         self.th = math.cos(math.pi - margin)
         self.mm = math.sin(math.pi - margin) * margin
         
-    def forward(self, x, gt, percent, entropy):
+    def forward(self, x, pred, split, th):
         x = self.conv(x)  
         x = self.upsampling(x)
         x_b, x_c, x_h, x_w = x.shape[:]
@@ -238,9 +355,13 @@ class AngularSegmentationHeadv2(nn.Module):
         # cosine = torch.einsum('n c, p c -> n p', flatten_x, self.embedding.weight) # (BHW, num_classes) slow...
         cosine = torch.matmul(flatten_x, self.embedding.weight.transpose(0,1))
         loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
-        if self.training and gt is not None:
-            # gt = label_to_onehot(gt, self.num_classes)
+        result = rearrange(cosine, '(b h w) p -> b h w p', b=x_b, h=x_h, w=x_w, p=self.num_classes)
+        result = rearrange(result, 'b h w p -> b p h w')
+        result = self.activation(result)
+        if self.training and pred is not None:
+            gt = torch.argmax(pred, dim=1) if split=="unlabeled" else pred
             gt = gt.unsqueeze(1) if gt.dim()==3 else gt
+            gt = F.interpolate(gt.float(), (x_h, x_w), mode="nearest").long()
             flatten_gt = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
             
             x_ind = torch.arange(x_b*x_h*x_w) 
@@ -256,30 +377,28 @@ class AngularSegmentationHeadv2(nn.Module):
             # cosine = cosine + self.margin * flatten_gt
             # scale
             cosine = self.scale * cosine
-             ## entropy filtering ##
-            with torch.no_grad():
-                thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), percent) # scalar
-                thresh_mask = torch.le(entropy, thresh)
-            cosine = cosine * thresh_mask.unsqueeze(-1)
+            ## TODO: ignore index
+            if self.training and split=="unlabeled" and pred is not None  and th>0:
+                thresh_mask = score_mask(pred, self.th)
+                thresh_mask = rearrange(gt, 'b c h w -> (b h w) c') # (BHW, 1)
+                cosine = cosine * thresh_mask
             positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
             # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
             sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
             loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)) 
-        pred = rearrange(cosine, '(b h w) p -> b h w p', b=x_b, h=x_h, w=x_w, p=self.num_classes)
-        pred = rearrange(pred, 'b h w p -> b p h w')
-        pred = self.activation(pred)
+        
         # commitment_loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
         if self.training:
             class_feat =self.embedding.weight.data[gt].permute(0, 4, 2, 3, 1).squeeze(-1)
             class_feat = class_feat.detach() # codebook 쪽 sg 연산
             commitment_loss = F.mse_loss(class_feat, x) # encoder update
             # commitment_loss = commitment_loss + commitloss 
-        loss  = loss + commitment_loss
-        if self.orthogonal_reg_weight > 0:
-            codebook = self.embedding.weight
-            orthogonal_reg_loss = orthogonal_loss_fn(codebook)
-            loss = loss + orthogonal_reg_loss * self.orthogonal_reg_weight
-        return pred, loss
+            loss  = loss + commitment_loss
+            if self.orthogonal_reg_weight > 0:
+                codebook = self.embedding.weight
+                orthogonal_reg_loss = orthogonal_loss_fn(codebook)
+                loss = loss + orthogonal_reg_loss * self.orthogonal_reg_weight
+        return result, loss
     
     def _kmeans_init(self, flatten_x):    
         if self.initted:
@@ -293,3 +412,4 @@ class AngularSegmentationHeadv2(nn.Module):
         
         self.embedding.weight.data.copy_(embed[0])
         self.initted = True
+        

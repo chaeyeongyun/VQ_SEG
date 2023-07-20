@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQRePTUnetAngular",
+    "project_name":"VQRePTUnetAngularv3",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{
@@ -9,7 +9,7 @@
     },
     "resize":448,
     "model":{
-        "name":"vqreptunetangular",
+        "name":"vqreptunetangularv3",
         "params":{
             "encoder_name":"resnet50",
             "num_classes":3,
@@ -53,7 +53,7 @@
         "save_txt":true,
         "save_as_tar":false,
         "wandb_config":["batch_size", "num_epochs"],
-        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "cps_loss", "commitment_loss", "prototype_loss", "crop_iou", "weed_iou", "back_iou"],
+        "wandb_log":["loss", "learning_rate", "miou", "code_usage", "sup_loss_1", "sup_loss_2", "cps_loss", "commitment_loss", "prototype_loss", "crop_iou", "weed_iou", "back_iou", "unreliable_score"],
         "wandb_metrics":["loss", "miou"] 
     },
     "test":{

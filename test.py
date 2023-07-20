@@ -191,7 +191,7 @@ if __name__ == "__main__":
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet1x1_hybrid_5/ckpoints/best_test_miou.pth"]
     # cfg_l = ["./config/vqreptunet1x1.json"]
     
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnetAngular3x3noentropy/ckpoints/best_test_miou.pth"]
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnetAngular1x1noentropy/ckpoints/best_test_miou.pth"]
     cfg_l = ["./config/vqreptunetangular.json"]
     
     # w_l = ["../drive/MyDrive/related_work/CWFID/obiafcn_num3010/ckpoints/best_test_miou.pth"]

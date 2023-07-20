@@ -32,6 +32,7 @@ network_dict = {
       "vqreptunet1x1":VQRePTUnet1x1,
       "vqretemptunet":VQReTemPTUnet,
       "vqreptunetangular":VQRePTUnetAngular,
+      "vqreptunetangularv3":VQRePTUnetAngularv3,
       "semiweednet":SemiWeedNet,
       "fcn32s":FCN32s
 }

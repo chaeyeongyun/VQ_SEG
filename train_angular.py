@@ -41,15 +41,16 @@ def test(test_loader, model, measurement:Measurement, cfg):
     return miou
 # 일단 no cutmix version
 def entropy_mask(pred, pseudo, th=0.7):
-    pred_prob = torch.softmax(pred, dim=1)
-    pred_max = pred_prob.max(dim=1)[0]
+    # pred_prob = torch.softmax(pred, dim=1)
+    # pred_max = pred_prob.max(dim=1)[0]
+    pred_max = pred.max(dim=1)[0]
     return torch.where(pred_max > th, pseudo, 255)
 
 def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
         ### name
-        logger_name = cfg.project_name+"1x1orthogonal1"
+        logger_name = cfg.project_name+"_"+"original"
         ### name
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
@@ -82,7 +83,8 @@ def train(cfg):
                         mode='fan_in', nonlinearity='relu')
     loss_weight = cfg.train.criterion.get("weight", None)
     loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
-    ce_loss = nn.CrossEntropyLoss(weight=loss_weight, ignore_index=255)
+    # ce_loss = nn.CrossEntropyLoss(weight=loss_weight, ignore_index=255)
+    ce_loss = nn.NLLLoss(weight=loss_weight, ignore_index=255)
     dice_loss = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight, ignore_index=255)
     
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
@@ -297,8 +299,8 @@ if __name__ == "__main__":
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=64
-    # cfg.project_name = 'debug'
-    # cfg.wandb_logging = False
+    cfg.project_name = 'debug'
+    cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.train.device = -1
     # cfg.resize = 256

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from models.networks.unet.decoder import UnetDecoder, CCAUnetDecoder
 from models.encoders import make_encoder
-from models.modules.segmentation_head import SegmentationHead, AngularSegmentationHeadv2
+from models.modules.segmentation_head import SegmentationHead, AngularSegmentationHeadv2, AngularSegmentationHeadv3
 from models.modules.prototype import *
 from models.modules.attention import make_attentions, DRSAM, CCA, IMDB
 from models.modules.conv_mixer import *
@@ -841,12 +841,11 @@ class VQRePTUnetAngular(nn.Module):
         vq_cfg:dict,
         margin=1.5,
         scale=1.,
-        use_feature=False,
         encoder_weights=None,
         in_channels:int=3,
         decoder_channels=None,
         depth:int=5,
-        activation=nn.Identity,
+        activation=nn.Softmax2d,
         upsampling=2,
         pt_init="kmeans"
         ):
@@ -861,10 +860,10 @@ class VQRePTUnetAngular(nn.Module):
             decoder_channels = decoder_channels[::-1]
         self.decoder = UnetDecoder(encoder_channels,
                                    decoder_channels)
-        self.segmentation_head = AngularSegmentationHeadv2( decoder_channels[-1], decoder_channels[-1], num_classes, scale=scale, margin=margin, kernel_size=1)
-        
-        self.device = None
+        self.segmentation_head = AngularSegmentationHeadv2( decoder_channels[-1], decoder_channels[-1], num_classes, scale=scale, margin=margin, upsampling=1, activation=activation)
         self.upsampling = nn.UpsamplingBilinear2d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
+        self.device = None
+        
         
     def forward(self, x, gt=None, code_usage_loss=False, percent=None):
         if self.device is None:
@@ -888,14 +887,90 @@ class VQRePTUnetAngular(nn.Module):
         # mean
         loss = loss / len(features)
         decoder_out = self.decoder(*features)
-        output = self.segmentation_head(decoder_out)
         entropy = None
         if self.training:
             with torch.no_grad():
-                prob = rearrange(output, 'b c h w -> (b h w) c') 
+                self.segmentation_head.eval()
+                tempoutput = self.segmentation_head(decoder_out, None, None, None)[0]
+                prob = rearrange(tempoutput, 'b c h w -> (b h w) c') 
                 prob = torch.softmax(prob, dim=1)
                 entropy = -torch.sum(prob*torch.log(prob+1e-10), dim=1) # (BHW, )
+                self.segmentation_head.train()
         output, prototype_loss = self.segmentation_head(decoder_out, gt, percent=percent, entropy=entropy)
+        output = self.upsampling(output)
+        if code_usage_loss : 
+            usage_loss = usage_loss / len(features)
+            return output, loss, torch.tensor(code_usage_lst), usage_loss
+        return output, loss, torch.tensor(code_usage_lst), prototype_loss
+    
+    @torch.no_grad()
+    def pseudo_label(self, x):
+        features = self.encoder(x)[1:]
+        if len(features) != len(self.codebook) : raise NotImplementedError
+        
+        for i in range(len(features)):
+            quantize, _, _, _ = self.codebook[i](features[i])
+            features[i] = quantize
+        
+        decoder_out = self.decoder(*features)
+        output = self.segmentation_head(decoder_out)
+        return torch.argmax(output, dim=1).long()
+
+class VQRePTUnetAngularv3(nn.Module):
+    def __init__(
+        self, 
+        encoder_name:str,
+        num_classes:int,
+        vq_cfg:dict,
+        margin=1.5,
+        scale=1.,
+        encoder_weights=None,
+        in_channels:int=3,
+        decoder_channels=None,
+        depth:int=5,
+        activation=nn.Softmax2d,
+        upsampling=2,
+        pt_init="kmeans"
+        ):
+        super().__init__()
+        
+        self.encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights, padding_mode='reflect')    
+        encoder_channels = self.encoder.out_channels()
+        self.codebook = make_vq_module(vq_cfg, encoder_channels, depth)
+        
+        if decoder_channels == None:
+            decoder_channels = [i//2 for i in encoder_channels[1:]] 
+            decoder_channels = decoder_channels[::-1]
+        self.decoder = UnetDecoder(encoder_channels,
+                                   decoder_channels)
+        self.segmentation_head = AngularSegmentationHeadv3( decoder_channels[-1], decoder_channels[-1], num_classes, scale=scale, margin=margin, upsampling=1, activation=activation)
+        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=upsampling) if upsampling > 1 else nn.Identity()
+        self.device = None
+        
+        
+    def forward(self, x, split=None, pred=None, code_usage_loss=False, th=None):
+        if self.device is None:
+            self.device = x.device
+        features = self.encoder(x)[1:]
+        if len(features) != len(self.codebook) : raise NotImplementedError
+        
+        loss = torch.tensor([0.], device=x.device, requires_grad=self.training)
+        code_usage_lst = []
+        if code_usage_loss : usage_loss = torch.tensor([0.], device=x.device, requires_grad=self.training)
+        for i in range(len(features)):
+            quantize, _embed_index, commitment_loss, code_usage = self.codebook[i](features[i])
+            features[i] = quantize
+            # sum
+            if commitment_loss is not None: loss = loss + commitment_loss
+            
+            if code_usage is not None: 
+                code_usage_lst.append(code_usage.detach().cpu())
+                if code_usage_loss: 
+                    usage_loss = usage_loss + code_usage
+        # mean
+        loss = loss / len(features)
+        decoder_out = self.decoder(*features)
+        output, prototype_loss = self.segmentation_head(decoder_out, pred, split=split, th=th)
         output = self.upsampling(output)
         if code_usage_loss : 
             usage_loss = usage_loss / len(features)

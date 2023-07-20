@@ -40,15 +40,18 @@ def test(test_loader, model, measurement:Measurement, cfg):
     print(f'test miou : {miou}')
     return miou
 # 일단 no cutmix version
-def entropy_mask(pred, pseudo, th=0.7):
-    pred_prob = torch.softmax(pred, dim=1)
-    pred_max = pred_prob.max(dim=1)[0]
+def entropy_mask(pred, pseudo, th):
+    # pred_prob = torch.softmax(pred, dim=1)
+    # pred_max = pred_prob.max(dim=1)[0]
+    pred_max = pred.max(dim=1)[0]
     return torch.where(pred_max > th, pseudo, 255)
 
 def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
-        logger_name = cfg.project_name+"_hybrid_"+str(len(os.listdir(cfg.train.save_dir)))
+        ### name
+        logger_name = cfg.project_name+"_"+"original"
+        ### name
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
         ckpoints_dir = os.path.join(save_dir, 'ckpoints')
@@ -80,7 +83,8 @@ def train(cfg):
                         mode='fan_in', nonlinearity='relu')
     loss_weight = cfg.train.criterion.get("weight", None)
     loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
-    ce_loss = nn.CrossEntropyLoss(weight=loss_weight, ignore_index=255)
+    # ce_loss = nn.CrossEntropyLoss(weight=loss_weight, ignore_index=255)
+    ce_loss = nn.NLLLoss(weight=loss_weight, ignore_index=255)
     dice_loss = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight, ignore_index=255)
     
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
@@ -142,24 +146,21 @@ def train(cfg):
             with torch.no_grad():
                 model_1.eval()
                 model_2.eval()
-                pseudo_1 = torch.argmax(model_1(ul_input)[0], dim=1)
-                pseudo_2 = torch.argmax(model_2(ul_input)[0], dim=1)
+                pseudo_1_score = model_1(ul_input)[0]
+                pseudo_2_score = model_2(ul_input)[0]
                 model_1.train()
                 model_2.train()
+            unreliable_score = (0.6/num_epochs)*epoch+0.1
+            # num_epoch가 10이면 20 * 0.1 / 100
             
-            percent_unreliable = cfg.train.unsup_loss_drop_percent * (1-epoch/num_epochs)
-            drop_percent = 100 - percent_unreliable
+            # 내가 원하는건 0.2 0.3 0.4 0.5 0.6 0.7 0.7 이렇게 가는거
             with torch.cuda.amp.autocast(enabled=half):
-                # pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
-                # pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
-                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
-                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
+                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, split="labeled", pred=l_target)
+                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, split="labeled",pred=l_target)
                 
                 ## predict in unsupervised manner ##
-                # pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
-                # pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, split="unlabeled", pred=pseudo_2_score, th=unreliable_score)
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, split="unlabeled", pred=pseudo_1_score, th=unreliable_score)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             ## cps loss ##
@@ -173,8 +174,8 @@ def train(cfg):
             with torch.cuda.amp.autocast(enabled=half):
                 ## cps loss
                 ### celoss에 대서 entropy 제한 ####
-                filt_entropy_1 = entropy_mask(pred_1, pseudo_1)
-                filt_entropy_2 = entropy_mask(pred_2, pseudo_2)
+                filt_entropy_1 = entropy_mask(pred_1, pseudo_1, th=unreliable_score)
+                filt_entropy_2 = entropy_mask(pred_2, pseudo_2, th=unreliable_score)
                 cps_loss = 0.5*ce_loss(pred_1, filt_entropy_2) + 0.5*ce_loss(pred_2, filt_entropy_1) + dice_loss(pred_1, filt_entropy_2) + dice_loss(pred_2, filt_entropy_1)
                 ## supervised loss
                 sup_loss_1 = 0.5*ce_loss(pred_sup_1, l_target) + dice_loss(pred_sup_1, l_target)
@@ -289,14 +290,14 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
-    # parser.add_argument('--config_path', default='./config/vqreptunetangular.json')
+    # parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
+    parser.add_argument('--config_path', default='./config/vqreptunetangularv3.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    cfg.resize=64
+    # cfg.resize=64
     cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.train.device = -1
     # cfg.resize = 256
