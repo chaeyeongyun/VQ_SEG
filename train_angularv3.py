@@ -50,7 +50,7 @@ def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
         ### name
-        logger_name = cfg.project_name+"_"+"original"
+        logger_name = cfg.project_name+"_"+"original_bigger70ep07"
         ### name
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
@@ -150,7 +150,9 @@ def train(cfg):
                 pseudo_2_score = model_2(ul_input)[0]
                 model_1.train()
                 model_2.train()
-            unreliable_score = (0.6/num_epochs)*epoch+0.1
+            
+            
+            unreliable_score = (epoch+1) / num_epochs if epoch < 70 else 0.7
             # num_epoch가 10이면 20 * 0.1 / 100
             
             # 내가 원하는건 0.2 0.3 0.4 0.5 0.6 0.7 0.7 이렇게 가는거

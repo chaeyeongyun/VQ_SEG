@@ -104,7 +104,7 @@ class CosinesimCodebook(nn.Module):
         distance = einsum('n d, e d -> n e', flatten_x, self.embedding.weight)
         distance = distance.contiguous().view((b, hw, self.num_embeddings))
        
-        embed_idx = torch.argmin(distance, dim=-1) # (N, 모든 픽셀 수)
+        embed_idx = torch.argmax(distance, dim=-1) # (N, 모든 픽셀 수)
         embed_idx_onehot = F.one_hot(embed_idx, num_classes=self.num_embeddings) # (N, 모든 픽셀 수, num_embeddings)
         quantized = torch.matmul(embed_idx_onehot.float(), self.embedding.weight)
         

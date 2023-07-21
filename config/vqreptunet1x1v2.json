@@ -1,5 +1,5 @@
 {   
-    "project_name":"VQRePTUnet1x1",
+    "project_name":"VQRePTUnet1x1v2",
     "wandb_logging":true,
     "num_classes":3,
     "pixel_to_label":{
@@ -9,7 +9,7 @@
     },
     "resize":448,
     "model":{
-        "name":"vqreptunet1x1",
+        "name":"vqreptunet1x1v2",
         "params":{
             "encoder_name":"resnet50",
             "num_classes":3,

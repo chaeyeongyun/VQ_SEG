@@ -62,7 +62,7 @@ def kmeans(flatten_x, num_clusters, num_iters, use_cosine_sim=False):
     
     return means, bins
 
-class CosinesimCodebook(nn.Module):
+class CosinesimSegHead(nn.Module):
     def __init__(
         self,
         embedding_dim,
@@ -104,7 +104,7 @@ class CosinesimCodebook(nn.Module):
         distance = einsum('n d, e d -> n e', flatten_x, self.embedding.weight)
         distance = distance.contiguous().view((b, hw, self.num_embeddings))
        
-        embed_idx = torch.argmin(distance, dim=-1) # (N, 모든 픽셀 수)
+        embed_idx = torch.argmax(distance, dim=-1) # (N, 모든 픽셀 수)
         embed_idx_onehot = F.one_hot(embed_idx, num_classes=self.num_embeddings) # (N, 모든 픽셀 수, num_embeddings)
         quantized = torch.matmul(embed_idx_onehot.float(), self.embedding.weight)
         
@@ -113,7 +113,7 @@ class CosinesimCodebook(nn.Module):
         zero_cnt = (codebook_cnt == 0).sum()
         code_usage = 100 * (zero_cnt / self.num_embeddings) # 낮을 수록 좋음
 
-        return quantized, embed_idx, code_usage
+        return quantized, distance, embed_idx, code_usage
     
     def _kmeans_init(self, flatten_x):    
         if self.initted:
@@ -130,7 +130,7 @@ class CosinesimCodebook(nn.Module):
         self.initted = True
 
 
-class EuclideanCodebook(nn.Module):
+class EuclideanSegHead(nn.Module):
     def __init__(
         self,
         embedding_dim,
@@ -158,14 +158,16 @@ class EuclideanCodebook(nn.Module):
             self.initted = True
         # nn.init.kaiming_uniform_(self.embedding.weight.data)
     def forward(self, x):
-        '''x shape : (B, HxW, C)'''
+        '''x shape : (B, C, H, W)'''
+        dtype = x.dtype
+        x_shape = x.shape
         x = x.float()
-        x_shape, dtype = x.shape, x.dtype
         flatten_x = rearrange(x, 'b ... c -> b (...) c')
         if self.kmeans_init and self.training:
             self._kmeans_init(flatten_x)
         distance = torch.cdist(flatten_x, self.embedding.weight, p=2) # (N, 모든 픽셀 수, num_embeddings)
         embed_idx = torch.argmin(distance, dim=-1) # (N, 모든 픽셀 수)
+        
         embed_idx_onehot = F.one_hot(embed_idx, num_classes=self.num_embeddings) # (N, 모든 픽셀 수, num_embeddings)
         quantized = torch.matmul(embed_idx_onehot.float(), self.embedding.weight)
         
@@ -174,7 +176,7 @@ class EuclideanCodebook(nn.Module):
         zero_cnt = (codebook_cnt == 0).sum()
         code_usage = 100 * (zero_cnt / self.num_embeddings) # 낮을 수록 좋음
 
-        return quantized, embed_idx, code_usage
+        return quantized, distance, embed_idx, code_usage
     
     def _kmeans_init(self, flatten_x):    
         if self.initted:
@@ -202,7 +204,8 @@ class VQSegmentationHead(nn.Module):
         kmeans_iters=10,
         distance='euclidean',
         commitment_weight = 1,  
-        num_codebook = 1
+        num_codebook = 1,
+        activation=nn.Softmax2d
         ):
         super().__init__()
         
@@ -211,9 +214,9 @@ class VQSegmentationHead(nn.Module):
         # TODO: projection require
         self.eps = eps
         self.commitment_weight = commitment_weight
-        
-        codebook_dict = {'euclidean':EuclideanCodebook,
-                         'cosine':CosinesimCodebook,}
+        self.code_distance = distance
+        codebook_dict = {'euclidean':EuclideanSegHead,
+                         'cosine':CosinesimSegHead,}
         codebook_class = codebook_dict[distance]
         
         self.codebook = codebook_class(
@@ -224,13 +227,14 @@ class VQSegmentationHead(nn.Module):
             decay = decay,
             eps = eps,
             num_codebook=num_codebook)
+        self.activation = activation()
         
     def forward(self, x):
         x = x.to(torch.float32)
         x_shape, device = x.shape, x.device
         x_h, x_w = x.shape[-2:]
         x = rearrange(x, 'b c h w -> b (h w) c') # (B, HxW, C)
-        quantize, embed_idx, code_usage = self.codebook(x)
+        quantize, distance, embed_idx,  code_usage = self.codebook(x)
         loss = torch.tensor([0.], device=device, requires_grad=self.training, dtype=torch.float32)
         if self.training:
             quantize = x + (quantize - x).detach() # preserve gradients
@@ -238,7 +242,12 @@ class VQSegmentationHead(nn.Module):
                 detached_quantize = quantize.detach() # codebook 쪽 sg 연산
                 commitment_loss = F.mse_loss(detached_quantize, x) # encoder update
                 loss = loss + commitment_loss * self.commitment_weight
-            
+        if self.code_distance == "euclidean":
+            score = rearrange(distance, 'b (h w) c -> b c h w', h=x_h, w=x_w)  
+            score =  1 - (score / torch.sum(score, dim=1, keepdim=True))
+        else:
+            score = rearrange(distance, 'b (h w) c -> b c h w', h=x_h, w=x_w)
+        score = self.activation(score)  
         quantize = rearrange(quantize, 'b (h w) c -> b c h w', h=x_h, w=x_w)
         embed_index = rearrange(embed_idx, 'b (h w) ... -> b h w ...', h=x_h, w=x_w)
-        return quantize, embed_index, loss, code_usage
+        return quantize, score, embed_index, loss, code_usage

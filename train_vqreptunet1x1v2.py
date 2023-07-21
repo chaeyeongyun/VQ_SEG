@@ -1,11 +1,10 @@
-# 찐 entropy 제한
 import argparse
 import matplotlib.pyplot as plt
 import os
 from itertools import cycle
 from tqdm import tqdm
 import time
-import numpy as np
+import wandb
 
 import torch
 import torch.nn as nn
@@ -41,16 +40,15 @@ def test(test_loader, model, measurement:Measurement, cfg):
     print(f'test miou : {miou}')
     return miou
 # 일단 no cutmix version
-def entropy_mask(pred, pseudo, drop_percent):
-    prob = torch.softmax(pred, dim=1) # B, 3, H, W
-    entropy = -torch.sum(prob*torch.log(prob+1e-10), dim=1) # (B, 1, H, W)
-    thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), drop_percent)
-    return torch.where(entropy<thresh, pseudo, 255)
+def score_mask(pred, pseudo, th=0.7):
+    pred_prob = torch.softmax(pred, dim=1)
+    pred_max = pred_prob.max(dim=1)[0]
+    return torch.where(pred_max > th, pseudo, 255)
 
 def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
-        logger_name = cfg.project_name+"_hybridv2_"+str(len(os.listdir(cfg.train.save_dir)))
+        logger_name = cfg.project_name+"_hybrid_"+str(len(os.listdir(cfg.train.save_dir)))
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
         ckpoints_dir = os.path.join(save_dir, 'ckpoints')
@@ -114,6 +112,7 @@ def train(cfg):
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
     total_prototype_loss_weight = cfg.train.total_prototype_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
+    confidence_threshold = cfg.train.confidence_threshold
     best_miou = 0
     for epoch in range(num_epochs):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
@@ -144,24 +143,22 @@ def train(cfg):
             with torch.no_grad():
                 model_1.eval()
                 model_2.eval()
-                pseudo_1 = torch.argmax(model_1(ul_input)[0], dim=1)
-                pseudo_2 = torch.argmax(model_2(ul_input)[0], dim=1)
+                pseudo_1_score = model_1(ul_input)[0]
+                pseudo_2_score = model_2(ul_input)[0]
                 model_1.train()
                 model_2.train()
             
-            percent_unreliable = cfg.train.unsup_loss_drop_percent * (1-epoch/num_epochs)
-            drop_percent = 100 - percent_unreliable
             with torch.cuda.amp.autocast(enabled=half):
                 # pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
                 # pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
-                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
-                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
+                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, th=confidence_threshold)
+                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, th=confidence_threshold)
                 
                 ## predict in unsupervised manner ##
                 # pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
                 # pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
+                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2_score, th=confidence_threshold)
+                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1_score, th=confidence_threshold)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             ## cps loss ##
@@ -175,8 +172,8 @@ def train(cfg):
             with torch.cuda.amp.autocast(enabled=half):
                 ## cps loss
                 ### celoss에 대서 entropy 제한 ####
-                filt_entropy_1 = entropy_mask(pred_1, pseudo_1, drop_percent)
-                filt_entropy_2 = entropy_mask(pred_2, pseudo_2, drop_percent)
+                filt_entropy_1 = score_mask(pred_1, pseudo_1, th=confidence_threshold)
+                filt_entropy_2 = score_mask(pred_2, pseudo_2, th=confidence_threshold)
                 cps_loss = 0.5*ce_loss(pred_1, filt_entropy_2) + 0.5*ce_loss(pred_2, filt_entropy_1) + dice_loss(pred_1, filt_entropy_2) + dice_loss(pred_2, filt_entropy_1)
                 ## supervised loss
                 sup_loss_1 = 0.5*ce_loss(pred_sup_1, l_target) + dice_loss(pred_sup_1, l_target)
@@ -291,7 +288,8 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
+    parser.add_argument('--config_path', default='./config/vqreptunet1x1v2.json')
+    # parser.add_argument('--config_path', default='./config/vqreptunetangular.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug

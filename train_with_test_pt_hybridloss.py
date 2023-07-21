@@ -40,7 +40,7 @@ def test(test_loader, model, measurement:Measurement, cfg):
     print(f'test miou : {miou}')
     return miou
 # 일단 no cutmix version
-def entropy_mask(pred, pseudo, th=0.7):
+def score_mask(pred, pseudo, th=0.7):
     pred_prob = torch.softmax(pred, dim=1)
     pred_max = pred_prob.max(dim=1)[0]
     return torch.where(pred_max > th, pseudo, 255)
@@ -112,6 +112,7 @@ def train(cfg):
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
     total_prototype_loss_weight = cfg.train.total_prototype_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
+    confidence_threshold = cfg.train.confidence_threshold
     best_miou = 0
     for epoch in range(num_epochs):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
@@ -173,8 +174,8 @@ def train(cfg):
             with torch.cuda.amp.autocast(enabled=half):
                 ## cps loss
                 ### celoss에 대서 entropy 제한 ####
-                filt_entropy_1 = entropy_mask(pred_1, pseudo_1)
-                filt_entropy_2 = entropy_mask(pred_2, pseudo_2)
+                filt_entropy_1 = score_mask(pred_1, pseudo_1, th=confidence_threshold)
+                filt_entropy_2 = score_mask(pred_2, pseudo_2, th=confidence_threshold)
                 cps_loss = 0.5*ce_loss(pred_1, filt_entropy_2) + 0.5*ce_loss(pred_2, filt_entropy_1) + dice_loss(pred_1, filt_entropy_2) + dice_loss(pred_2, filt_entropy_1)
                 ## supervised loss
                 sup_loss_1 = 0.5*ce_loss(pred_sup_1, l_target) + dice_loss(pred_sup_1, l_target)
@@ -289,14 +290,14 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
+    parser.add_argument('--config_path', default='./config/vqreptunetdouble1x1.json')
     # parser.add_argument('--config_path', default='./config/vqreptunetangular.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    cfg.resize=64
-    cfg.project_name = 'debug'
-    cfg.wandb_logging = False
+    # cfg.resize=64
+    # cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.train.device = -1
     # cfg.resize = 256
