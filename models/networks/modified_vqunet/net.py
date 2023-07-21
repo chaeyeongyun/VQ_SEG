@@ -77,7 +77,8 @@ class VQRePTUnet1x1(nn.Module):
             quantize, _embed_index, commitment_loss, code_usage = self.codebook[i](features[i])
             features[i] = quantize
             # sum
-            if commitment_loss is not None: loss = loss + commitment_loss
+            # if commitment_loss is not None: loss = loss + commitment_loss
+            if commitment_loss: loss = loss + commitment_loss
             
             if code_usage is not None: 
                 code_usage_lst.append(code_usage.detach().cpu())
