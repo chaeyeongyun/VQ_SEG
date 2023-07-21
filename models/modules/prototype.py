@@ -470,10 +470,10 @@ class ReliablePrototypeLoss(nn.Module):
         # cosine = cosine * thresh_mask.unsqueeze(-1)
         ## positive에다 masking을 해줘야loss에서 0이됨. 지금까지 exp전에다가 해서 아마 1값이 나왔을 것이다.....
         positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
-        positive = positive* thresh_mask
+        positive = positive
         # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
         sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
-        loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)) 
+        loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)* thresh_mask) 
         
         if self.orthogonal_reg_weight > 0:
             codebook = self.embedding.weight
@@ -746,10 +746,10 @@ class ReliablePrototypeLossv2(nn.Module):
         # scale
         cosine = self.scale * cosine
         positive = torch.exp(cosine[x_ind, flatten_gt[:,0]])
-        positive  = positive * confidence_mask if confidence_mask is not None else positive
+        positive  = positive 
         # positive = torch.exp(torch.sum(cosine * flatten_gt, dim=-1)) #(BHW,)
         sum_all = torch.sum(torch.exp(cosine), dim=-1) # (BHW, )
-        loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)) 
+        loss = -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7))  if confidence_mask is None else -torch.mean(torch.log((positive / (sum_all + 1e-7)) + 1e-7)*confidence_mask)
         
         if self.orthogonal_reg_weight > 0:
             codebook = self.embedding.weight
