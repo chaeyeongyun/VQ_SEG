@@ -48,7 +48,7 @@ def score_mask(pred, pseudo, th=0.7):
 def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
-        logger_name = cfg.project_name+"_margin0_"+str(len(os.listdir(cfg.train.save_dir)))
+        logger_name = cfg.project_name+"_small_vq_"+str(len(os.listdir(cfg.train.save_dir)))
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
         ckpoints_dir = os.path.join(save_dir, 'ckpoints')
@@ -315,7 +315,7 @@ if __name__ == "__main__":
     # cfg.wandb_logging = False
     # cfg.model.params.encoder_weights = "imagenet"
     cfg.train.wandb_log.append('test_miou')
-    cfg.model.params.margin=0
+    cfg.model.params.vq_cfg.num_embeddings = [0, 0, 50, 50, 50]
     train(cfg)
     # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     # cfg.model.params.encoder_weights = None

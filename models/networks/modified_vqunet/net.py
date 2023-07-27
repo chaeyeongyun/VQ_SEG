@@ -258,6 +258,7 @@ class VQRePTUnet1x1v2(nn.Module):
         decoder_out = self.decoder(*features)
         output = self.segmentation_head(decoder_out)
         return torch.argmax(output, dim=1).long()
+    
 class VQReTemPTUnet(nn.Module):
     def __init__(
         self, 

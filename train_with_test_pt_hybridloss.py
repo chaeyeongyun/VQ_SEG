@@ -290,7 +290,7 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqreptunetdouble1x1.json')
+    parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
     # parser.add_argument('--config_path', default='./config/vqreptunetangular.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
@@ -314,6 +314,10 @@ if __name__ == "__main__":
     # cfg.train.wandb_log.append('test_miou')
     # cfg.wandb_logging = False
     # cfg.model.params.encoder_weights = "imagenet"
+    cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
+    cfg.train.wandb_log.append('test_miou')
+    train(cfg)
+    cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     cfg.train.wandb_log.append('test_miou')
     train(cfg)
     # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
