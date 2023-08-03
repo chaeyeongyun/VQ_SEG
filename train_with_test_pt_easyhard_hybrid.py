@@ -392,12 +392,16 @@ if __name__ == "__main__":
     
     
     # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
+    cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
     cfg.project_name = cfg.project_name + "_easyhard_hybrid"
     cfg.train.wandb_log.append('test_miou')
+    cfg.train.batch_size=3
     # cfg.model.params.encoder_weights = "imagenet"
-    cfg.wandb_logging = False
-    cfg.resize=64
-    # cfg.train.only_sup_epochs = 10
+    train(cfg)
+    cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
+    cfg.project_name = cfg.project_name + "_easyhard_hybrid"
+    cfg.train.wandb_log.append('test_miou')
+    cfg.train.batch_size=3
     train(cfg)
     # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     # cfg.train.wandb_log.append('test_miou')

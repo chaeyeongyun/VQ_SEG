@@ -45,7 +45,7 @@ def entropy_mask(pred, pseudo, drop_percent):
     prob = torch.softmax(pred, dim=1) # B, 3, H, W
     entropy = -torch.sum(prob*torch.log(prob+1e-10), dim=1) # (B, 1, H, W)
     thresh = np.percentile(entropy.detach().cpu().numpy().flatten(), drop_percent)
-    return torch.where(entropy<thresh, pseudo, 255)
+    return torch.where(entropy>thresh, pseudo, 255)
 
 def train(cfg):
     seed_everything()
@@ -312,8 +312,11 @@ if __name__ == "__main__":
     # cfg.project_name = cfg.project_name+"_no_norm"
     # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
     # cfg.train.wandb_log.append('test_miou')
-    # cfg.wandb_logging = False
     # cfg.model.params.encoder_weights = "imagenet"
+    cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
+    cfg.train.wandb_log.append('test_miou')
+    train(cfg)
+    cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     cfg.train.wandb_log.append('test_miou')
     train(cfg)
     # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
