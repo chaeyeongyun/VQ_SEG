@@ -38,7 +38,8 @@ network_dict = {
       "fcn32s":FCN32s,
       "vqsegheadnet":VQSegHeadNet,
       "vqreptunetdouble1x1":VQRePTUnetDouble1x1,
-      "vqreptunet1x1v2":VQRePTUnet1x1v2
+      "vqreptunet1x1v2":VQRePTUnet1x1v2,
+      "vqonlyptunet1x1":VQOnlyPTUnet1x1
 }
 
 def make_model(model_cfg:dict):

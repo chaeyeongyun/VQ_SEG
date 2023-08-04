@@ -19,7 +19,7 @@
                 "distance":"euclidean",
                 "kmeans_init": true
                 },
-            "margin":0.5,
+            "margin": 0.0,
             "scale":30.0,
             "use_feature":false,
             "encoder_weights":"imagenet_swsl"

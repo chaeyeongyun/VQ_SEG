@@ -296,37 +296,8 @@ if __name__ == "__main__":
     cfg = get_config_from_json(opt.config_path)
     # debug
     # cfg.resize=64
-    # cfg.project_name = 'debug'
-    # cfg.wandb_logging = False
-    # cfg.train.half=False
-    # cfg.train.device = -1
-    # cfg.resize = 256
-    # train(cfg)
-    # cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
-    # cfg.train.criterion = "cross_entropy"
-    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
-    # train(cfg)
-    # cfg.model.params.encoder_weights = "imagenet_swsl"
-    # train(cfg)
-    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
-    # cfg.project_name = cfg.project_name+"_no_norm"
-    # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    # cfg.train.wandb_log.append('test_miou')
-    # cfg.wandb_logging = False
-    # cfg.model.params.encoder_weights = "imagenet"
-    
-    # IJRR2017 ###
-    cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    cfg.train.wandb_log.append('test_miou')
-    cfg.model.params.encoder_weights = "imagenet"
+    cfg.project_name = 'debug'
+    cfg.wandb_logging = False
+    cfg.model.name = "vqonlyptunet1x1"
+    # cfg.train.device=-1
     train(cfg)
-    
-    ## rice s n w ###
-    cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
-    cfg.train.wandb_log.append('test_miou')
-    cfg.model.params.encoder_weights = "imagenet"
-    train(cfg)
-    
-    # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
-    # cfg.model.params.encoder_weights = None
-    # train(cfg)
