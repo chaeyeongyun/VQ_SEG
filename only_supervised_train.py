@@ -57,7 +57,11 @@ def train(cfg):
                         nn.BatchNorm2d, cfg.train.bn_eps, cfg.train.bn_momentum, 
                         mode='fan_in', nonlinearity='relu')
     
-    criterion = make_loss(cfg.train.criterion, num_classes, ignore_index=255)
+    # criterion = make_loss(cfg.train.criterion, num_classes, ignore_index=255)
+    loss_weight = cfg.train.criterion.get("weight", None)
+    loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
+    ce_loss = nn.CrossEntropyLoss(weight=loss_weight, ignore_index=255)
+    dice_loss = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight, ignore_index=255)
     
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled', resize=cfg.resize)
     
@@ -86,6 +90,7 @@ def train(cfg):
         crop_iou, weed_iou, back_iou = 0, 0, 0
         sum_sup_loss = 0
         sum_commitment_loss = 0
+        sum_prototype_loss = 0
         sum_loss = 0
         sum_miou = 0
         ep_start = time.time()
@@ -101,18 +106,19 @@ def train(cfg):
             l_input = l_input.to(device)
             l_target = l_target.to(device)
         
-     
+            percent_unreliable = cfg.train.unsup_loss_drop_percent * (1-epoch/num_epochs)
+            drop_percent = 100 - percent_unreliable
             with torch.cuda.amp.autocast(enabled=half):
-                pred_sup_1, commitment_loss_l1, code_usage_l1 = model_1(l_input)
+                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
                 if batch_idx == 0:
                     sum_code_usage = torch.zeros_like(code_usage_l1)
             
             
             with torch.cuda.amp.autocast(enabled=half):
                 ## supervised loss
-                sup_loss = criterion(pred_sup_1, l_target)
+                sup_loss = 0.5*ce_loss(pred_sup_1, l_target) + dice_loss(pred_sup_1, l_target)
                 commitment_loss = commitment_loss_l1
-                
+                prototype_loss = prototype_loss_l1
                 ## learning rate update
                 current_idx = epoch * len(sup_loader) + batch_idx
                 learning_rate = lr_scheduler.get_lr(current_idx)
@@ -133,6 +139,7 @@ def train(cfg):
             sum_loss += loss.item()
             sum_sup_loss += sup_loss.item()
             sum_commitment_loss += commitment_loss.item()
+            sum_prototype_loss += prototype_loss.item()
             back_iou += iou_list[0]
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
@@ -187,17 +194,28 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/only_sup_kmeans.json')
+    parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     # debug
-    # cfg.resize=32
+    # cfg.resize=64
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
-    cfg.train.criterion = "dice_loss"
-    cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
+    cfg.project_name = 'only_sup_percent30'+cfg.project_name
     train(cfg)
-   
+   # IJRR2017 ###
+    cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
+    cfg.train.wandb_log.append('test_miou')
+    cfg.project_name = 'only_sup_percent30'+cfg.project_name
+    # cfg.model.params.encoder_weights = "imagenet"
+    train(cfg)
+    
+    ## rice s n w ###
+    cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
+    cfg.train.wandb_log.append('test_miou')
+    cfg.project_name = 'only_sup_percent30'+cfg.project_name
+    # cfg.model.params.encoder_weights = "imagenet"
+    train(cfg)

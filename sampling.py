@@ -8,7 +8,7 @@ import random
 import re
 
 def bonirob_sampling(percent, data_root="/content/data/cropweed_total/IJRR2017/seg", save_root="/content/data/semi_sup_data/IJRR2017"):
-    total = 400
+    total = 430
     save_root = osp.join(save_root, f"percent_{percent}")
     save_input = osp.join(save_root, "train", "input")
     save_target = osp.join(save_root, "train", "target")
@@ -57,16 +57,16 @@ def sampling(data_root, save_root, total, percent):
             target = osp.join(osp.split(osp.split(im)[0])[0], "target", filename)
             # copy(im, osp.join(save_input, filename))
             copy(target, osp.join(save_target, filename))
-    copytree(f"/content/data/semi_sup_data/{dataset}/num30/test", osp.join(save_root, "test"))
+    copytree(osp.join(data_root, "test"), osp.join(save_root, "test"))
     copytree(f"/content/data/semi_sup_data/{dataset}/num30/train/input", save_input)
         
-# if __name__ == "__main__":
+if __name__ == "__main__":
     # sampling(data_root="/content/data/cropweed_total/CWFID/seg", save_root="/content/data/semi_sup_data/CWFID", total=50, percent=30)
     # sampling(data_root="/content/data/cropweed_total/CWFID/seg", save_root="/content/data/semi_sup_data/CWFID", total=50, percent=20)
     # sampling(data_root="/content/data/cropweed_total/CWFID/seg", save_root="/content/data/semi_sup_data/CWFID", total=50, percent=10)
     # sampling(data_root="/content/data/cropweed_total/rice_s_n_w/seg", save_root="/content/data/semi_sup_data/rice_s_n_w", total=180, percent=30)
     # sampling(data_root="/content/data/cropweed_total/rice_s_n_w/seg", save_root="/content/data/semi_sup_data/rice_s_n_w", total=180, percent=20)
     # sampling(data_root="/content/data/cropweed_total/rice_s_n_w/seg", save_root="/content/data/semi_sup_data/rice_s_n_w", total=180, percent=10)
-    # bonirob_sampling(30)
-    # bonirob_sampling(20)
-    # bonirob_sampling(10)
+    bonirob_sampling(30)
+    bonirob_sampling(20)
+    bonirob_sampling(10)

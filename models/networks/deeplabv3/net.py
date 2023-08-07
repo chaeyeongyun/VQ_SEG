@@ -50,7 +50,7 @@ class DeepLabV3Plus(nn.Module):
         encoder_output_stride: int = 16,
         decoder_atrous_rates: tuple = (12, 24, 36),
         activation=nn.Identity,
-        upsampling=4) -> None:
+        upsampling=4):
         super().__init__()
         self.encoder = make_encoder(encoder_name, in_channels, depth, weights=encoder_weights, output_stride=encoder_output_stride)    
         self.decoder = DeepLabV3PlusDecoder(

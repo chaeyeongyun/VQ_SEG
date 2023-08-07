@@ -48,7 +48,8 @@ def score_mask(pred, pseudo, th=0.7):
 def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
-        logger_name = cfg.project_name+"_hybrid_"+str(len(os.listdir(cfg.train.save_dir)))
+        dataset, manner = cfg.train.data_dir.split("/")[-2:]
+        logger_name = cfg.project_name+f"_{dataset}_{manner}_"+str(len(os.listdir(cfg.train.save_dir)))
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
         ckpoints_dir = os.path.join(save_dir, 'ckpoints')
@@ -81,7 +82,6 @@ def train(cfg):
     loss_weight = cfg.train.criterion.get("weight", None)
     loss_weight = torch.tensor(loss_weight) if loss_weight is not None else loss_weight
     ce_loss = nn.CrossEntropyLoss(weight=loss_weight, ignore_index=255)
-    dice_loss = make_loss(cfg.train.criterion.name, num_classes, weight=loss_weight, ignore_index=255)
     
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
     unsup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='unlabelled',  batch_size=batch_size, resize=cfg.resize)
@@ -118,8 +118,6 @@ def train(cfg):
         trainloader = iter(zip(cycle(sup_loader), unsup_loader))
         crop_iou, weed_iou, back_iou = 0, 0, 0
         sum_cps_loss, sum_sup_loss_1, sum_sup_loss_2 = 0, 0, 0
-        sum_commitment_loss = 0
-        sum_prototype_loss = 0
         sum_loss = 0
         sum_miou = 0
         ep_start = time.time()
@@ -138,31 +136,13 @@ def train(cfg):
             l_target = l_target.to(device)
             ul_input = ul_input.to(device)
 
-            # pseudo_1 = model_1.pseudo_label(ul_input)
-            # pseudo_2 = model_2.pseudo_label(ul_input)
-            with torch.no_grad():
-                model_1.eval()
-                model_2.eval()
-                pseudo_1 = torch.argmax(model_1(ul_input)[0], dim=1)
-                pseudo_2 = torch.argmax(model_2(ul_input)[0], dim=1)
-                model_1.train()
-                model_2.train()
-            
-            percent_unreliable = cfg.train.unsup_loss_drop_percent * (1-epoch/num_epochs)
-            drop_percent = 100 - percent_unreliable
             with torch.cuda.amp.autocast(enabled=half):
-                # pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
-                # pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
-                pred_sup_1, commitment_loss_l1, code_usage_l1, prototype_loss_l1 = model_1(l_input, l_target, percent=drop_percent)
-                pred_sup_2, commitment_loss_l2, code_usage_l2, prototype_loss_l2 = model_2(l_input, l_target, percent=drop_percent)
+                pred_sup_1 = model_1(l_input)
+                pred_sup_2 = model_2(l_input)
                 
-                ## predict in unsupervised manner ##
-                # pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
-                # pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
-                pred_ul_1, commitment_loss_ul1, code_usage_ul1, prototype_loss_ul1 = model_1(ul_input, pseudo_2, percent=drop_percent)
-                pred_ul_2, commitment_loss_ul2, code_usage_ul2, prototype_loss_ul2 = model_2(ul_input, pseudo_1, percent=drop_percent)
-                if batch_idx == 0:
-                    sum_code_usage = torch.zeros_like(code_usage_l1)
+                pred_ul_1 = model_1(ul_input)
+                pred_ul_2 = model_2(ul_input)
+                
             ## cps loss ##
             pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
             pred_2 = torch.cat([pred_sup_2, pred_ul_2], dim=0)
@@ -174,19 +154,12 @@ def train(cfg):
             with torch.cuda.amp.autocast(enabled=half):
                 ## cps loss
                 ### celoss에 대서 entropy 제한 ####
-                filt_entropy_1 = score_mask(pred_1, pseudo_1, th=confidence_threshold)
-                filt_entropy_2 = score_mask(pred_2, pseudo_2, th=confidence_threshold)
-                cps_loss = 0.5*ce_loss(pred_1, filt_entropy_2) + 0.5*ce_loss(pred_2, filt_entropy_1) + dice_loss(pred_1, filt_entropy_2) + dice_loss(pred_2, filt_entropy_1)
+                cps_loss = ce_loss(pred_1, pseudo_2) + ce_loss(pred_2, pseudo_1)
                 ## supervised loss
-                sup_loss_1 = 0.5*ce_loss(pred_sup_1, l_target) + dice_loss(pred_sup_1, l_target)
-                sup_loss_2 = 0.5*ce_loss(pred_sup_2, l_target) + dice_loss(pred_sup_2, l_target)
+                sup_loss_1 = ce_loss(pred_sup_1, l_target) 
+                sup_loss_2 = ce_loss(pred_sup_2, l_target) 
                 sup_loss = sup_loss_1 + sup_loss_2
-                ## commitment_loss
-                commitment_loss = commitment_loss_l1 + commitment_loss_l2 + commitment_loss_ul1 + commitment_loss_ul2
-                commitment_loss *= total_commitment_loss_weight
-                ## prototype_loss
-                prototype_loss = prototype_loss_l1 + prototype_loss_l2 + prototype_loss_ul1 + prototype_loss_ul2
-                prototype_loss *= total_prototype_loss_weight
+
                 
                 ## learning rate update
                 current_idx = epoch * len(unsup_loader) + batch_idx
@@ -195,8 +168,8 @@ def train(cfg):
                 optimizer_1.param_groups[0]['lr'] = learning_rate
                 optimizer_2.param_groups[0]['lr'] = learning_rate
                 
-                loss = sup_loss + cps_loss_weight*cps_loss + commitment_loss + prototype_loss
-                sum_code_usage += (code_usage_l1 + code_usage_l2 + code_usage_ul1 + code_usage_ul2) / 4 
+                loss = sup_loss + cps_loss_weight*cps_loss 
+                
                 
             scaler.scale(loss).backward()
             scaler.step(optimizer_1)
@@ -210,8 +183,6 @@ def train(cfg):
             sum_cps_loss += cps_loss.item()
             sum_sup_loss_1 += sup_loss_1.item()
             sum_sup_loss_2 += sup_loss_2.item()
-            sum_commitment_loss += commitment_loss.item()
-            sum_prototype_loss += prototype_loss.item()
             back_iou += iou_list[0]
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
@@ -222,7 +193,7 @@ def train(cfg):
                 log_txt.write(print_txt)
         
         ## end epoch ## 
-        code_usage = (sum_code_usage / len(unsup_loader)).tolist()
+        
         if isinstance(code_usage, float): code_usage = [code_usage]
         back_iou, weed_iou, crop_iou = back_iou / len(unsup_loader), weed_iou / len(unsup_loader), crop_iou / len(unsup_loader)
         cps_loss = sum_cps_loss / len(unsup_loader)
@@ -275,7 +246,7 @@ def train(cfg):
             # wandb logging
             for key in logger.config_dict.keys():
                 logger.config_dict[key] = eval(key)
-            for key in logger.log_dict.keys():
+            for key in ["loss", "learning_rate", "miou",  "crop_iou", "weed_iou", "back_iou"]:
                 if key=="code_usage":
                     logger.temp_update(list_to_separate_log(l=eval(key), name=key))
                 else:logger.log_dict[key] = eval(key)
@@ -295,12 +266,16 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = cfg.project_name + "_percent_30"
+    cfg.model.name = "deeplabv3plus"
+    for v in ["vq_cfg", "margin", "scale", "use_feature"]:
+        cfg.model.params.pop(v)
+    cfg.model.params.encoder_weights = "imagenet"
+    cfg.project_name = "CPS"
+    cfg.resize=32
+    cfg.project_name = 'debug'
+    # cfg.wandb_logging = False
     train(cfg)
     # debug
-    # cfg.resize=64
-    # cfg.project_name = 'debug'
-    # cfg.wandb_logging = False
     # cfg.train.half=False
     # cfg.train.device = -1
     # cfg.resize = 256
@@ -320,14 +295,14 @@ if __name__ == "__main__":
     # IJRR2017 ###
     cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
     cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = cfg.project_name + "_percent_30"
+    cfg.project_name = "CPS"
     # cfg.model.params.encoder_weights = "imagenet"
     train(cfg)
     
     ## rice s n w ###
     cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = cfg.project_name + "_percent_30"
+    cfg.project_name = "CPS"
     # cfg.model.params.encoder_weights = "imagenet"
     train(cfg)
     
