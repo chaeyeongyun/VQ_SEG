@@ -1,22 +1,20 @@
-def change1(parent):
-    parent = parent
-    parent[1] = 100
-def change2(parent):
-    parent[1] = 100
-def solution():
-    parent = [1, 2, 3, 4, 5]
-    change2(parent)
-    print(parent)
+def solution(N):
+  dp = [True for _ in range((10**N) + 1)]
+  for i in range(2, int(((10**N) - 1)**0.5) + 1):
+    print("dp")
+    if dp[i]:
+      j = 2
+      while i * j < 10 ** N:
+        dp[i * j] = False
+  for i in range(10 ^ (N - 1), 10 ^ N):
+    print(f"i:{i}")
+    for j in range(N):
+      print(f"j: {j}")
+      is_break = False
+      if dp[i // (10**j)]:
+        break
+    if not is_break:
+      print(i)
 
-solution()
 
-def change3(val):
-    val = val
-    val = 4
-def change4(val):
-    val = 4
-def solution2():
-    val  = 1
-    change4(val)
-    print(val)
-solution2()
+solution(4)

@@ -26,7 +26,7 @@
             }
         },
     "train":{
-        "data_dir":"../data/semi_sup_data/rice_s_n_w/num30",
+        "data_dir":"../data/semi_sup_data/rice_s_n_w/percent_60",
         "save_dir":"../drive/MyDrive/semi_sup_train/rice_s_n_w",
         "device":0,
         "num_epochs":400,
@@ -59,7 +59,7 @@
         "wandb_metrics":["loss", "miou"] 
     },
     "test":{
-        "data_dir":"../data/semi_sup_data/rice_s_n_w/num30",
+        "data_dir":"../data/semi_sup_data/rice_s_n_w/percent_60",
         "save_dir":"../drive/MyDrive/semi_sup_test/rice_s_n_w",
         "device":0,
         "batch_size":1,
