@@ -26,7 +26,7 @@
             }
         },
     "train":{
-        "data_dir":"../data/semi_sup_data/IJRR2017/percent_60",
+        "data_dir":"../data/semi_sup_data/IJRR2017/percent_30",
         "save_dir":"../drive/MyDrive/semi_sup_train/IJRR2017",
         "device":0,
         "num_epochs":400,
@@ -59,7 +59,7 @@
         "wandb_metrics":["loss", "miou"] 
     },
     "test":{
-        "data_dir":"../data/semi_sup_data/IJRR2017/percent_60",
+        "data_dir":"../data/semi_sup_data/IJRR2017/percent_30",
         "save_dir":"../drive/MyDrive/semi_sup_test/IJRR2017",
         "device":0,
         "batch_size":1,

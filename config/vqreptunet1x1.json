@@ -26,7 +26,7 @@
             }
         },
     "train":{
-        "data_dir":"../data/semi_sup_data/CWFID/num30",
+        "data_dir":"../data/semi_sup_data/CWFID/percent_30",
         "save_dir":"../drive/MyDrive/semi_sup_train/CWFID",
         "device":0,
         "num_epochs":400,
@@ -59,7 +59,7 @@
         "wandb_metrics":["loss", "miou"] 
     },
     "test":{
-        "data_dir":"../data/semi_sup_data/CWFID/num30",
+        "data_dir":"../data/semi_sup_data/CWFID/percent_30",
         "save_dir":"../drive/MyDrive/semi_sup_test/CWFID",
         "device":0,
         "batch_size":1,
