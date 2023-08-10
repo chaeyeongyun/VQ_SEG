@@ -19,6 +19,23 @@ def pred_to_colormap(pred:np.ndarray, colormap:np.ndarray):
     show = colormap[pred_label] # (N, H, W, 3)
     return show
 
+def pred_to_detailed_colormap(pred:np.ndarray, target:np.ndarray, colormap:np.ndarray):
+    labels = np.unique(target).tolist()
+    num_classes = len(labels)
+    pred_label = np.argmax(pred, axis=1) # (N, H, W)
+    for label in labels:
+        pred_label[(pred_label == label) & (target != label)] = label + num_classes
+    # crop TP:2,red FP 5,yellow
+    # weed TP:1,blue FP 4,orange
+    # BG TP:0,black FP 3, gray
+    # https://www.color-hex.com/color/e69138
+    if colormap.shape == (3, 3) and num_classes == 3:
+        colormap = np.array([[0, 0, 0], [0, 0, 255], [255, 0, 0], [128, 128, 128], [230, 145, 56], [255, 217, 102]], np.uint8) # (3,3)->(6,3)
+    else:
+        raise NotImplementedError
+    show = colormap[pred_label] # (N, H, W, 3)
+    return show
+
 def target_to_colormap(target:np.ndarray, colormap:np.ndarray):
     show = colormap[target] # (N, H, W, 3)
     return show
@@ -164,6 +181,11 @@ def make_test_img(input, pred, target, colormap:np.ndarray=np.array([[0., 0., 0.
     # save_img(img_dir, name+'_v2'+ext, viz_v2)
     return viz_v1, viz_v2
     
-    
-    
+def make_test_detailed_img(input, pred, target, colormap:np.ndarray=np.array([[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]])):
+    input = batch_to_grid(input)
+    pred = batch_to_grid(pred_to_detailed_colormap(pred, colormap=colormap), transpose=False)
+    target = batch_to_grid(target_to_colormap(target, colormap=colormap), transpose=False)
+    viz_v1 = np.concatenate((input, target, pred), axis=1)
+    viz_v2 = mix_input_pred(input, pred)
+    return viz_v1, viz_v2
     

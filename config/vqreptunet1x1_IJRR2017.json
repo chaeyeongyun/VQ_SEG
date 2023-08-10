@@ -20,7 +20,7 @@
                 "kmeans_init": true
                 },
             "margin":0.0,
-            "scale":30.0,
+            "scale":1.0,
             "use_feature":false,
             "encoder_weights":"imagenet_swsl"
             }

@@ -295,12 +295,14 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = cfg.project_name + "_percent_30"
-    train(cfg)
-    # debug
+    ### debug
     # cfg.resize=64
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
+    ########
+    cfg.project_name = cfg.project_name + "_percent_30"
+    train(cfg)
+    # debug
     # cfg.train.half=False
     # cfg.train.device = -1
     # cfg.resize = 256
