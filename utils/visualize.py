@@ -29,8 +29,8 @@ def pred_to_detailed_colormap(pred:np.ndarray, target:np.ndarray, colormap:np.nd
     # weed TP:1,blue FP 4,orange
     # BG TP:0,black FP 3, gray
     # https://www.color-hex.com/color/e69138
-    if colormap.shape == (3, 3) and num_classes == 3:
-        colormap = np.array([[0, 0, 0], [0, 0, 255], [255, 0, 0], [128, 128, 128], [230, 145, 56], [255, 217, 102]], np.uint8) # (3,3)->(6,3)
+    if num_classes == 3:
+        colormap = np.array([[0, 0, 0], [0, 0, 1], [1, 0, 0], [0.5, 0.5, 0.5], [230/255, 145/255, 56/255], [1, 217/255, 102/255]]) # (3,3)->(6,3)
     else:
         raise NotImplementedError
     show = colormap[pred_label] # (N, H, W, 3)
@@ -183,7 +183,7 @@ def make_test_img(input, pred, target, colormap:np.ndarray=np.array([[0., 0., 0.
     
 def make_test_detailed_img(input, pred, target, colormap:np.ndarray=np.array([[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]])):
     input = batch_to_grid(input)
-    pred = batch_to_grid(pred_to_detailed_colormap(pred, colormap=colormap), transpose=False)
+    pred = batch_to_grid(pred_to_detailed_colormap(pred, target, colormap=colormap), transpose=False)
     target = batch_to_grid(target_to_colormap(target, colormap=colormap), transpose=False)
     viz_v1 = np.concatenate((input, target, pred), axis=1)
     viz_v2 = mix_input_pred(input, pred)

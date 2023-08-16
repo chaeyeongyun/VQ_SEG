@@ -191,7 +191,7 @@ if __name__ == "__main__":
     # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet1x1_hybrid_5/ckpoints/best_test_miou.pth"]
     # cfg_l = ["./config/vqreptunet1x1.json"]
     
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/AblationScheme20/ckpoints/best_test_miou.pth"]
+    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/AblationScheme52/ckpoints/best_test_miou.pth"]
     cfg_l = ["./config/vqreptunet1x1.json"]
     
     # w_l = ["../drive/MyDrive/semi_sup_train/IJRR2017/VQRePTUnet1x1_IJRR20171/ckpoints/best_test_miou.pth"]
@@ -206,7 +206,7 @@ if __name__ == "__main__":
         cfg = get_config_from_json(cfg_l[i])
         # cfg.wandb_logging = False
         cfg.test.weights = w_l[i]
-        cfg.model.params.vq_cfg.num_embeddings=[0, 0, 0, 0, 0]
+        cfg.model.params.vq_cfg.num_embeddings=[0, 0, 0, 0, 512]
         test(cfg)
     
         

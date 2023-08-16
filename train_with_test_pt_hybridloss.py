@@ -300,8 +300,8 @@ if __name__ == "__main__":
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     ########
-    cfg.project_name = cfg.project_name + "_percent_30"
-    train(cfg)
+    # cfg.project_name = cfg.project_name + "_percent_30"
+    # train(cfg)
     # debug
     # cfg.train.half=False
     # cfg.train.device = -1
@@ -323,14 +323,14 @@ if __name__ == "__main__":
     cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
     cfg.train.wandb_log.append('test_miou')
     cfg.project_name = cfg.project_name + "_percent_30"
-    # cfg.model.params.encoder_weights = "imagenet"
+    cfg.model.params.encoder_weights = "imagenet"
     train(cfg)
     
     ## rice s n w ###
     cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     cfg.train.wandb_log.append('test_miou')
     cfg.project_name = cfg.project_name + "_percent_30"
-    # cfg.model.params.encoder_weights = "imagenet"
+    cfg.model.params.encoder_weights = "imagenet"
     train(cfg)
     
     # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")

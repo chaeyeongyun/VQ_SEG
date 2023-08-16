@@ -126,8 +126,7 @@ def test_loop(model:nn.Module, weights_file:str, num_classes:int, pixel_to_label
         pred_cpu = F.interpolate(pred.detach().cpu(), save_size, mode='bilinear')
         mask_cpu = F.interpolate(mask_img.detach().cpu().unsqueeze(1), save_size, mode='nearest').squeeze(1)
         mask_cpu = img_to_label(mask_cpu, pixel_to_label_map)
-        viz_v1, viz_v2 = make_test_detailed_img(input_img.numpy(), pred_cpu, mask_cpu,
-                        colormap = np.array([[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]]))
+        viz_v1, viz_v2 = make_test_detailed_img(input_img.numpy(), pred_cpu, mask_cpu, colormap = np.array([[0, 0, 0], [0, 0, 1], [1, 0, 0], [0.5, 0.5, 0.5], [230/255, 145/255, 56/255], [1, 217/255, 102/255]]))
         viz_v1_list.append(viz_v1)
         viz_v2_list.append(viz_v2)
         filename_list.append(*filename)
@@ -169,30 +168,11 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     
-    
-    # test(cfg)
-    # cfg = get_config_from_json('./config/only_sup_kmeans.json')
-    # w_l = ["../drive/MyDrive/only_sup_train/CWFID/only_sup_kmeans132/ckpoints", 
-    #        "../drive/MyDrive/only_sup_train/CWFID/only_sup_kmeans133/ckpoints",]
-    # num_embeddings_l = [[0, 0, 512, 512, 512], [0, 0, 2048, 2048, 2048]]
-    # for w, ne in zip(w_l, num_embeddings_l):
-    #     cfg.test.weights = w
-    #     cfg.model.params.vq_cfg.num_embeddings = ne
-    #     # cfg.wandb_logging=False
-    #     test(cfg)
-    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2102/ckpoints", 
-    #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2103/ckpoints",
-    
-
-    # w_l = ["../drive/MyDrive/only_sup_train/CWFID/unet_num106/ckpoints/best_test_miou.pth",
-    #        "../drive/MyDrive/only_sup_train/IJRR2017/unet_num103/ckpoints/best_test_miou.pth",
-    #        "../drive/MyDrive/only_sup_train/rice_s_n_w/unet_num103/ckpoints/best_test_miou.pth"]
-    # cfg_l = ['./config/CWFID_Unet.json', './config/IJRR2017_Unet.json', './config/rice_s_n_w_Unet.json']
-    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet1x1_hybrid_5/ckpoints/best_test_miou.pth"]
-    # cfg_l = ["./config/vqreptunet1x1.json"]
-    
-    w_l = ["../drive/MyDrive/semi_sup_train/CWFID/AblationScheme20/ckpoints/best_test_miou.pth"]
-    cfg_l = ["./config/vqreptunet1x1.json"]
+    cfg_l = ["./config/vqreptunet1x1_rice_s_n_w.json"] * 4
+    w_l = ["../drive/MyDrive/semi_sup_train/rice_s_n_w/VQRePTUnet1x1_rice_s_n_w_percent_30_hybrid_0/ckpoints/best_test_miou.pth",
+           "../drive/MyDrive/semi_sup_train/rice_s_n_w/VQRePTUnet1x1_rice_s_n_w_percent_30_hybrid_2/ckpoints/best_test_miou.pth",
+        "../drive/MyDrive/semi_sup_train/rice_s_n_w/VQRePTUnet1x1_rice_s_n_w_percent_20_hybrid_2/ckpoints/best_test_miou.pth",
+           "../drive/MyDrive/semi_sup_train/rice_s_n_w/VQRePTUnet1x1_rice_s_n_w_percent_10_hybrid_0/ckpoints/best_test_miou.pth"]
     
     # w_l = ["../drive/MyDrive/semi_sup_train/IJRR2017/VQRePTUnet1x1_IJRR20171/ckpoints/best_test_miou.pth"]
     # cfg_l = ["./config/vqreptunet1x1_IJRR2017.json"]
@@ -206,40 +186,6 @@ if __name__ == "__main__":
         cfg = get_config_from_json(cfg_l[i])
         # cfg.wandb_logging = False
         cfg.test.weights = w_l[i]
-        cfg.model.params.vq_cfg.num_embeddings=[0, 0, 0, 0, 0]
+        # cfg.model.params.vq_cfg.num_embeddings=[0, 0, 0, 0, 0]
         test(cfg)
     
-        
-    # cfg = get_config_from_json("./config/cps_vqv1.json")
-    # w_l = ["../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v186/ckpoints",
-    #        "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v16/ckpoints"]
-    # resize_l = [256, 512]
-    # num_embeddings_l = [512, 2048]
-    # for i, (w, ne) in enumerate(zip(w_l, num_embeddings_l)):
-    #     cfg.test.weights = w
-    #     cfg.resize = resize_l[i]
-    #     cfg.model.params.vq_cfg.num_embeddings = ne
-    #     test(cfg)
-    
-    
-    # cfg = get_config_from_json("./config/cps_vqv2_pretrained.json")
-    # vqv2_selfsup_folds = [
-    #     "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision13",
-    #     "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision14",
-    #     "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision23",
-    #     "../drive/MyDrive/self_supervised/CWFID/VQUNetv2_selfsupervision24"
-    # ]
-    
-    
-    # ckpoint_fold = "../drive/MyDrive/semi_sup_train/CWFID/VQUnet_v2_base_selfsup"
-    # start = 94
-    # resize_l = [256, 256, 256, 256]
-    # num_embeds_l = [2048, 2048, 512, 512]
-    # epochs = [200, 400, 600, 800]
-    # for i, selfsup in enumerate(vqv2_selfsup_folds):
-    #     cfg.resize = resize_l[i]
-    #     cfg.model.params.vq_cfg.num_embeddings = num_embeds_l[i]
-    #     for epoch in epochs:
-    #         cfg.test.weights = os.path.join(ckpoint_fold+str(start), 'ckpoints') 
-    #         test(cfg)
-    #         start += 1
