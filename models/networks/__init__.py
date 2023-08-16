@@ -5,6 +5,7 @@ from .modified_vqunet import *
 from .semiweednet import *
 from .fcn import *
 from .vqseghead import *
+from .ablation import *
 network_dict = {
     "deeplabv3":DeepLabV3,
     "deeplabv3plus":DeepLabV3Plus,
@@ -40,6 +41,8 @@ network_dict = {
       "vqreptunetdouble1x1":VQRePTUnetDouble1x1,
       "vqreptunet1x1v2":VQRePTUnet1x1v2,
       "vqonlyptunet1x1":VQOnlyPTUnet1x1
+      "nopt":NoPT
+      "scheme6":Scheme6
 }
 
 def make_model(model_cfg:dict):
