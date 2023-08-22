@@ -28,6 +28,8 @@ from loss import make_loss
 from loss.dc_loss import DCLoss
 from measurement import Measurement
 
+from test_detailviz import test as real_test
+
 def overlapped_patches(ul_input:torch.Tensor, overlap_size=240):
     b, c, h, w = ul_input.shape
     add = overlap_size // 3
@@ -58,7 +60,9 @@ def test(test_loader, model, measurement:Measurement, cfg):
 def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
-        logger_name = cfg.project_name+str(len(os.listdir(cfg.train.save_dir)))
+        root, percent = os.path.split(cfg.train.data_dir)
+        root, dataset = os.path.split(root)
+        logger_name = cfg.project_name+"_"+dataset+"_"+percent+"_"+str(len(os.listdir(cfg.train.save_dir)))
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
         ckpoints_dir = os.path.join(save_dir, 'ckpoints')
@@ -219,6 +223,8 @@ def train(cfg):
         logger.finish()
     if cfg.train.save_as_tar:
         save_tar(save_dir)
+    cfg.test.weights = os.path.join(ckpoints_dir, "best_test_miou.pth")
+    real_test(cfg)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -229,4 +235,33 @@ if __name__ == "__main__":
     # cfg.wandb_logging=False
     # cfg.project_name = "debug"
     # cfg.resize = 64
+    train(cfg)
+    cfg.train.data_dir = "../data/semi_sup_data/CWFID/percent_20"
+    train(cfg)
+    cfg.train.data_dir = "../data/semi_sup_data/CWFID/percent_10"
+    train(cfg)
+    
+    
+    cfg.train.data_dir = "../data/semi_sup_data/IJRR2017/percent_30"
+    cfg.test.data_dir =  "../data/semi_sup_data/IJRR2017/percent_30"
+    cfg.train.save_dir = "../drive/MyDrive/related_work/IJRR2017"
+    cfg.test.save_dir =  "../drive/MyDrive/related_work/IJRR2017"
+    train(cfg)
+    cfg.train.data_dir = "../data/semi_sup_data/IJRR2017/percent_20"
+    cfg.test.data_dir =  "../data/semi_sup_data/IJRR2017/percent_20"
+    train(cfg)
+    cfg.train.data_dir = "../data/semi_sup_data/IJRR2017/percent_10"
+    cfg.test.data_dir =  "../data/semi_sup_data/IJRR2017/percent_10"
+    train(cfg)
+    
+    cfg.train.data_dir = "../data/semi_sup_data/rice_s_n_w/percent_30"
+    cfg.test.data_dir =  "../data/semi_sup_data/rice_s_n_w/percent_30"
+    cfg.test.save_dir =  "../drive/MyDrive/related_work/rice_s_n_w"
+    cfg.train.save_dir = "../drive/MyDrive/related_work/rice_s_n_w"
+    train(cfg)
+    cfg.train.data_dir = "../data/semi_sup_data/rice_s_n_w/percent_20"
+    cfg.test.data_dir =  "../data/semi_sup_data/rice_s_n_w/percent_20"
+    train(cfg)
+    cfg.train.data_dir = "../data/semi_sup_data/rice_s_n_w/percent_10"
+    cfg.test.data_dir =  "../data/semi_sup_data/rice_s_n_w/percent_10"
     train(cfg)

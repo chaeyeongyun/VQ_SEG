@@ -40,7 +40,7 @@ def make_feature(image, image_gray, gt_image):
     featarray = np.stack(l)
     return featarray, train_y, assignment
 
-def main(image_root="/content/data/semi_sup_data/CWFID/num30/train",save_path = "/content/data/semi_sup_data/CWFID/num30/train/OBIA3"):
+def main(image_root="/content/data/semi_sup_data/CWFID/percent30/train",save_path = "/content/data/semi_sup_data/CWFID/percent30/obia/"):
     target_filenames = os.listdir(osp.join(image_root, "target"))
     os.makedirs(save_path, exist_ok=True)
     feat_list = []
@@ -90,6 +90,11 @@ def main(image_root="/content/data/semi_sup_data/CWFID/num30/train",save_path = 
        
 
 if __name__ == "__main__":
-    main()
+    dataroot = "/content/data/semi_sup_data"
+    percents = ["percent_30", "percent_20", "percent_10"]
+    datasets = ["CWFID", "IJRR2017", "rice_s_n_w"]
+    for dataset in datasets:
+        for percent in percents:
+            main(image_root=osp.join(dataroot, dataset, percent, "train"), save_path=osp.join(dataroot, dataset, percent, "train", "obia"))
     
     

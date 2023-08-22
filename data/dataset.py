@@ -139,7 +139,7 @@ class OBIADataset(Dataset):
         
         self.img_dir = os.path.join(data_dir, 'input')
         self.target_resize = target_resize
-        self.target_files = glob(osp.join(data_dir, "target", "*.png")) +glob(osp.join(data_dir, "OBIA", "*.png"))
+        self.target_files = glob(osp.join(data_dir, "target", "*.png")) +glob(osp.join(data_dir, "obia", "*.png"))
         
         if batch_size is not None and len(self.target_files) % batch_size != 0:
                 self.target_files = self.target_files + self.target_files[0:batch_size-len(self.target_files) % batch_size]

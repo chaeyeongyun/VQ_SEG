@@ -42,7 +42,7 @@ class FCN32s(nn.Module):
         output = self.decoder(output[-1])
         if input_shape != output.shape[-2:]:
             output = F.interpolate(output, size=input_shape, mode="bilinear", align_corners=False)
-        return output
+        return output, None
     
     def _initialize_weights(self):
         for m in self.decoder.modules():

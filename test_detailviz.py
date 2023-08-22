@@ -168,11 +168,10 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     
-    cfg_l = ["./config/vqreptunet1x1_rice_s_n_w.json"] * 4
-    w_l = ["../drive/MyDrive/semi_sup_train/rice_s_n_w/VQRePTUnet1x1_rice_s_n_w_percent_30_hybrid_0/ckpoints/best_test_miou.pth",
-           "../drive/MyDrive/semi_sup_train/rice_s_n_w/VQRePTUnet1x1_rice_s_n_w_percent_30_hybrid_2/ckpoints/best_test_miou.pth",
-        "../drive/MyDrive/semi_sup_train/rice_s_n_w/VQRePTUnet1x1_rice_s_n_w_percent_20_hybrid_2/ckpoints/best_test_miou.pth",
-           "../drive/MyDrive/semi_sup_train/rice_s_n_w/VQRePTUnet1x1_rice_s_n_w_percent_10_hybrid_0/ckpoints/best_test_miou.pth"]
+    w_l = [ "../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet1x1_percent_20_hybrid_12/ckpoints/best_test_miou.pth",
+            "../drive/MyDrive/semi_sup_train/CWFID/VQRePTUnet1x1_percent_10_hybrid_2/ckpoints/best_test_miou.pth",]
+    cfg_l = ["./config/vqreptunet1x1.json"] *2
+
     
     # w_l = ["../drive/MyDrive/semi_sup_train/IJRR2017/VQRePTUnet1x1_IJRR20171/ckpoints/best_test_miou.pth"]
     # cfg_l = ["./config/vqreptunet1x1_IJRR2017.json"]
@@ -189,3 +188,26 @@ if __name__ == "__main__":
         # cfg.model.params.vq_cfg.num_embeddings=[0, 0, 0, 0, 0]
         test(cfg)
     
+    ## ablation ##
+    # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
+    # cfg.test.weights = "../drive/MyDrive/semi_sup_train/IJRR2017/Ablation_IJRR2017Scheme17/ckpoints/50ep.pth"
+    # cfg.model.params.vq_cfg.num_embeddings=[0, 0, 0, 0, 0]
+    # test(cfg)
+    # cfg.test.weights = "../drive/MyDrive/semi_sup_train/IJRR2017/Ablation_IJRR2017Scheme22/ckpoints/50ep.pth"
+    # cfg.model.params.vq_cfg.num_embeddings=[0, 0, 0, 0, 0]
+    # test(cfg)
+    # cfg.test.weights = "../drive/MyDrive/semi_sup_train/IJRR2017/Ablation_IJRR2017Scheme38/ckpoints/50ep.pth"
+    # cfg.model.params.vq_cfg.num_embeddings=[512, 512, 512, 512, 512]
+    # test(cfg)
+    # cfg.test.weights = "../drive/MyDrive/semi_sup_train/IJRR2017/Ablation_IJRR2017Scheme43/ckpoints/50ep.pth"
+    # cfg.model.params.vq_cfg.num_embeddings=[8000, 8000, 512, 512, 512]
+    # test(cfg)
+    # cfg.test.weights = "../drive/MyDrive/semi_sup_train/IJRR2017/Ablation_IJRR2017Scheme50/ckpoints/50ep.pth"
+    # cfg.model.params.vq_cfg.num_embeddings=[0, 0, 0, 0, 512]
+    # test(cfg)
+    # cfg.test.weights = "../drive/MyDrive/semi_sup_train/IJRR2017/Ablation_IJRR2017Scheme66/ckpoints/50ep.pth"
+    # cfg.model.params.vq_cfg.num_embeddings=[0, 0, 512, 512, 512]
+    # test(cfg)
+    # cfg.test.weights = "../drive/MyDrive/semi_sup_train/IJRR2017/Ablation_IJRR2017Scheme74/ckpoints/50ep.pth"
+    # cfg.model.params.vq_cfg.num_embeddings=[0, 0, 512, 512, 512]
+    # test(cfg)

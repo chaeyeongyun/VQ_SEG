@@ -25,6 +25,9 @@ from data.dataset import BaseDataset
 
 from loss import make_loss
 from measurement import Measurement
+
+from test_detailviz import test as real_test
+
 def test(test_loader, model, measurement:Measurement, cfg):
     sum_miou = 0
     for data in tqdm(test_loader):
@@ -287,6 +290,8 @@ def train(cfg):
         logger.finish()
     if cfg.train.save_as_tar:
         save_tar(save_dir)
+    cfg.test.weights = os.path.join(ckpoints_dir, "best_test_miou.pth")
+    real_test(cfg)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -323,14 +328,14 @@ if __name__ == "__main__":
     cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
     cfg.train.wandb_log.append('test_miou')
     cfg.project_name = cfg.project_name + "_percent_30"
-    cfg.model.params.encoder_weights = "imagenet"
+    cfg.model.params.encoder_weights = None
     train(cfg)
     
     ## rice s n w ###
     cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     cfg.train.wandb_log.append('test_miou')
     cfg.project_name = cfg.project_name + "_percent_30"
-    cfg.model.params.encoder_weights = "imagenet"
+    cfg.model.params.encoder_weights = None
     train(cfg)
     
     # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
