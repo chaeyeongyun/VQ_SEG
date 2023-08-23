@@ -214,6 +214,7 @@ class NormalizedDataset(Dataset):
         img = np.array(img)
         img = img / 255
         img = torch.from_numpy(img)
+        img = img.transpose(0, 3, 1, 2)
         target = torch.from_numpy(np.array(target)) if target is not None else None
         if target is None:
             return {'filename':filename, 'img':img}
