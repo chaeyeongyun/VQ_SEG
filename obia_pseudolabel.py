@@ -65,8 +65,8 @@ def main(image_root="/content/data/semi_sup_data/CWFID/percent30/train",save_pat
 
     features = np.concatenate(feat_list, axis=0)
     Y_train = np.concatenate(y_list, axis=0)
-    # model = RandomForestClassifier()
-    model = SVC()
+    model = RandomForestClassifier()
+    # model = SVC()
     model.fit(features, Y_train)
     ## TODO: unlabeled data labeling
     image_filenames = os.listdir(osp.join(image_root, "input"))

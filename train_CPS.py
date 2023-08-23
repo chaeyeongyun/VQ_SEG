@@ -20,7 +20,7 @@ from utils.visualize import make_example_img, save_img
 from utils.seg_tools import img_to_label
 from utils.lr_schedulers import WarmUpPolyLR, CosineAnnealingLR
 from utils.seed import seed_everything
-
+from test_detailviz import test as real_test
 from data.dataset import BaseDataset
 
 from loss import make_loss
@@ -108,7 +108,7 @@ def train(cfg):
         
     
     # progress bar
-    cps_loss_weight = cfg.train.cps_loss_weight
+    cps_loss_weight = 1
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
     total_prototype_loss_weight = cfg.train.total_prototype_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
@@ -187,25 +187,21 @@ def train(cfg):
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(unsup_loader)}] lr={learning_rate:.5f}" \
-                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss.item():.4f}, cps_loss={cps_loss:.4f}"
+                            + f"miou={step_miou}, sup_loss_1={sup_loss_1:.4f}, cps_loss={cps_loss:.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
         
         ## end epoch ## 
-        
-        if isinstance(code_usage, float): code_usage = [code_usage]
         back_iou, weed_iou, crop_iou = back_iou / len(unsup_loader), weed_iou / len(unsup_loader), crop_iou / len(unsup_loader)
         cps_loss = sum_cps_loss / len(unsup_loader)
         sup_loss_1 = sum_sup_loss_1 / len(unsup_loader)
         sup_loss_2 = sum_sup_loss_2 / len(unsup_loader)
-        commitment_loss = sum_commitment_loss / len(unsup_loader)
-        prototype_loss = sum_prototype_loss / len(unsup_loader)
         loss = sum_loss / len(unsup_loader)
         miou = sum_miou / len(unsup_loader)
         
         print_txt = f"[Epoch{epoch}]" \
-                            + f"miou={miou:.4f}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss:.4f}, cps_loss={cps_loss:.4f}, commitment_loss={commitment_loss:.4f}"
+                            + f"miou={miou:.4f}, sup_loss_1={sup_loss_1:.4f}, cps_loss={cps_loss:.4f}"
         print(print_txt)
         test_miou = test(test_loader, model_1, measurement, cfg)
         print(f"test_miou : {test_miou:.4f}")
@@ -258,54 +254,27 @@ def train(cfg):
         logger.finish()
     if cfg.train.save_as_tar:
         save_tar(save_dir)
-    
+    cfg.test.weights = os.path.join(ckpoints_dir, "best_test_miou.pth")
+    real_test(cfg)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
     # parser.add_argument('--config_path', default='./config/vqreptunetangular.json')
     opt = parser.parse_args()
-    cfg = get_config_from_json(opt.config_path)
-    cfg.train.wandb_log.append('test_miou')
-    cfg.model.name = "deeplabv3plus"
-    for v in ["vq_cfg", "margin", "scale", "use_feature"]:
-        cfg.model.params.pop(v)
-    cfg.model.params.encoder_weights = "imagenet"
-    cfg.project_name = "CPS"
-    cfg.resize=32
-    cfg.project_name = 'debug'
-    # cfg.wandb_logging = False
-    train(cfg)
-    # debug
-    # cfg.train.half=False
-    # cfg.train.device = -1
-    # cfg.resize = 256
-    # train(cfg)
-    # cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
-    # cfg.train.criterion = "cross_entropy"
-    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
-    # train(cfg)
-    # cfg.model.params.encoder_weights = "imagenet_swsl"
-    # train(cfg)
-    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
-    # cfg.project_name = cfg.project_name+"_no_norm"
-    # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    # cfg.train.wandb_log.append('test_miou')
-    # cfg.wandb_logging = False
-    # cfg.model.params.encoder_weights = "imagenet"
-    # IJRR2017 ###
-    cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = "CPS"
-    # cfg.model.params.encoder_weights = "imagenet"
-    train(cfg)
     
-    ## rice s n w ###
-    cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
-    cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = "CPS"
-    # cfg.model.params.encoder_weights = "imagenet"
-    train(cfg)
-    
-    # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
-    # cfg.model.params.encoder_weights = None
-    # train(cfg)
+    for cfgfile in ['./config/vqreptunet1x1.json', "./config/vqreptunet1x1_IJRR2017.json", "./config/vqreptunet1x1_rice_s_n_w.json"]:
+        for percent in ["percent_30", "percent_20", "percent_10"]:
+            cfg = get_config_from_json(cfgfile)
+            cfg.train.wandb_log.append('test_miou')
+            root, p = os.path.split(cfg.train.data_dir) 
+            cfg.train.data_dir = os.path.join(root, percent)
+            cfg.model.name = "deeplabv3plus"
+            for v in ["vq_cfg", "margin", "scale", "use_feature"]:
+                cfg.model.params.pop(v)
+            cfg.model.params.encoder_weights = "imagenet"
+            cfg.project_name = "CPS"
+            cfg.resize=32
+            cfg.project_name = 'debug'
+            # cfg.wandb_logging = False
+            train(cfg)
