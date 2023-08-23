@@ -137,11 +137,11 @@ def train(cfg):
             ul_input = ul_input.to(device)
 
             with torch.cuda.amp.autocast(enabled=half):
-                pred_sup_1 = model_1(l_input)
-                pred_sup_2 = model_2(l_input)
+                pred_sup_1 = model_1(l_input)[0]
+                pred_sup_2 = model_2(l_input)[0]
                 
-                pred_ul_1 = model_1(ul_input)
-                pred_ul_2 = model_2(ul_input)
+                pred_ul_1 = model_1(ul_input)[0]
+                pred_ul_2 = model_2(ul_input)[0]
                 
             ## cps loss ##
             pred_1 = torch.cat([pred_sup_1, pred_ul_1], dim=0)
@@ -274,7 +274,7 @@ if __name__ == "__main__":
                 cfg.model.params.pop(v)
             cfg.model.params.encoder_weights = "imagenet"
             cfg.project_name = "CPS"
-            cfg.resize=32
-            cfg.project_name = 'debug'
+            # cfg.resize=32
+            # cfg.project_name = 'debug'
             # cfg.wandb_logging = False
             train(cfg)

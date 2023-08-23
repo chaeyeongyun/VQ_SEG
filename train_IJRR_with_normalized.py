@@ -454,39 +454,18 @@ def train(cfg):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
+    parser.add_argument('--config_path', default='./config/vqreptunet1x1_IJRR2017.json')
     # parser.add_argument('--config_path', default='./config/vqreptunetangular.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     cfg.train.wandb_log.append('test_miou')
+    cfg.project_name = cfg.project_name + "_percent_30"
+    cfg.model.params.encoder_weights = "imagenet"
     ### debug
     # cfg.resize=64
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     ########
-    # cfg.project_name = cfg.project_name + "_percent_30"
-    # train(cfg)
-    # debug
-    # cfg.train.half=False
-    # cfg.train.device = -1
-    # cfg.resize = 256
-    # train(cfg)
-    # cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
-    # cfg.train.criterion = "cross_entropy"
-    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
-    # train(cfg)
-    # cfg.model.params.encoder_weights = "imagenet_swsl"
-    # train(cfg)
-    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
-    # cfg.project_name = cfg.project_name+"_no_norm"
-    # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    # cfg.train.wandb_log.append('test_miou')
-    # cfg.wandb_logging = False
-    # cfg.model.params.encoder_weights = "imagenet"
-    # IJRR2017 ###
-    cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = cfg.project_name + "_percent_30"
-    cfg.model.params.encoder_weights = None
     train(cfg)
     
+
