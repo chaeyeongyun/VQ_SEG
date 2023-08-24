@@ -210,7 +210,7 @@ def score_mask(pred, pseudo, th=0.7):
 def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
-        logger_name = cfg.project_name+"_hybrid_"+str(len(os.listdir(cfg.train.save_dir)))
+        logger_name = cfg.project_name+"_hybrid_norm_cont_"+str(len(os.listdir(cfg.train.save_dir)))
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
         ckpoints_dir = os.path.join(save_dir, 'ckpoints')
