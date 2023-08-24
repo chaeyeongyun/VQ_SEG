@@ -113,7 +113,7 @@ def train(cfg):
             l_input = l_input.to(device)
             l_target = l_target.to(device)
             with torch.cuda.amp.autocast(enabled=half):
-                pred = model(l_input)
+                pred = model(l_input)[0]
 
             with torch.cuda.amp.autocast(enabled=half):
                 loss = criterion(pred, l_target)

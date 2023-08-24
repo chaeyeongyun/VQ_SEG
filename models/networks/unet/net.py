@@ -937,7 +937,7 @@ class ExpansivePath(nn.Module):
         output = torch.cat((output, pass1), 1) # (N, 128, 568, 568)
         output = self.conv4(output) # (N, 64, 564, 564)
         
-        return output
+        return output, None
 
 class UnetOriginal(nn.Module):
     def __init__(self, in_channels=3, first_outchannels=64, num_classes=3, init_weights=True, upsampling=1, activation=nn.Identity):
@@ -967,7 +967,7 @@ class UnetOriginal(nn.Module):
         output = self.decoder(output, pass1, pass2, pass3, pass4)
         output = self.segmentation_head(output)
         output = output[:, :, :orgh, :orgw]
-        return output
+        return output, None
    
     def _initialize_weights(self):
         for m in self.modules():

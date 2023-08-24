@@ -6,9 +6,11 @@ from tqdm import tqdm
 import time
 import wandb
 
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+
 
 import models
 from utils.logger import Logger, list_to_separate_log
@@ -23,6 +25,8 @@ from utils.seed import seed_everything
 
 from data.dataset import BaseDataset
 
+from test_detailviz import test as real_test
+
 from loss import make_loss
 from measurement import Measurement
 from warmup_scheduler import GradualWarmupScheduler
@@ -35,7 +39,7 @@ def test(test_loader, model, measurement:Measurement, cfg):
         mask_cpu = img_to_label(mask_img, cfg.pixel_to_label).cpu().numpy()
         model.eval()
         with torch.no_grad():
-            pred = model(input_img)
+            pred = model(input_img)[0]
         miou, _ = measurement.miou(measurement._make_confusion_matrix(pred.detach().cpu().numpy(), mask_cpu))
         sum_miou += miou
     miou = sum_miou / len(test_loader)
@@ -67,6 +71,7 @@ def train(cfg):
     
     model = models.networks.make_model(cfg.model).to(device)
 
+    ce_loss = nn.CrossEntropyLoss(weight=loss_weight, ignore_index=255)
     criterion = make_loss(cfg.train.criterion.name, num_classes)
     
     traindataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled',  batch_size=batch_size, resize=cfg.resize)
@@ -116,10 +121,10 @@ def train(cfg):
             l_input = l_input.to(device)
             l_target = l_target.to(device)
             with torch.cuda.amp.autocast(enabled=half):
-                pred = model(l_input)
+                pred = model(l_input)[0]
 
             with torch.cuda.amp.autocast(enabled=half):
-                loss = criterion(pred, l_target)
+                loss = criterion(pred, l_target) + 0.5*ce_loss(pred, l_target)
                 
                 ## learning rate update
                 current_idx = epoch * len(trainloader) + batch_idx
@@ -189,6 +194,8 @@ def train(cfg):
         logger.finish()
     if cfg.train.save_as_tar:
         save_tar(save_dir)
+    cfg.test.weights = os.path.join(ckpoints_dir, "best_test_miou.pth")
+    real_test(cfg)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -210,19 +217,53 @@ if __name__ == "__main__":
     # train(cfg)
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
     # cfg_list = ['./config/CWFID_Unet.json', "./config/IJRR2017_Unet.json", "./config/rice_s_n_w_Unet.json"]
-    cfg_list = ["./config/CWFID_Unet.json"]
+    
+    cfg_list = ["./config/CWFID_Unet.json", "./config/IJRR2017_Unet.json", "./config/rice_s_n_w_Unet.json"]
+    # Unet full
     for json in cfg_list:
         cfg = get_config_from_json(json)
-        # cfg.wandb_logging = False
-        # cfg.model = {
-        # "name":"unetoriginal",
-        # "params":{
-        #     "in_channels":3
-        #     }
-        # }
-        # num30인 경우
-        dataset = os.path.splitext(os.path.split(json)[-1])[0][:-5]
-        cfg.train.data_dir = os.path.join(f"../data/semi_sup_data/{dataset}/num10")
         cfg.train.wandb_log.append('test_miou')
+        cfg.project_name = "FullSupervision"
         train(cfg)
+    
+    # Unet  # small
+    percents = ["percent_30", "percent_20", "percent_10"]
+    for json in cfg_list:
+        for percent in percents:
+            cfg = get_config_from_json(json)
+            # cfg.wandb_logging = False
+            # cfg.model = {
+            # "name":"unetoriginal",
+            # "params":{
+            #     "in_channels":3
+            #     }
+            # }
+            dataset = os.path.split(os.path.split(cfg.train.data_dir)[0])[-1]
+            cfg.train.data_dir = os.path.join(f"../data/semi_sup_data/{dataset}/{percent}")
+            cfg.train.wandb_log.append('test_miou')
+            cfg.project_name = "SmallSupervision"
+            train(cfg)
         
+        
+    cfg_list = ["./config/vqreptunet1x1.json", "./config/vqreptunet1x1_IJRR2017.json", "./config/vqreptunet1x1_rice_s_n_w.json"]
+    # VQPUnet full
+    for json in cfg_list:
+        cfg = get_config_from_json(json)
+        dataset = os.path.split(os.path.split(cfg.train.data_dir)[0])[-1]
+        cfg.train.data_dir = os.path.join(f"../data/cropweed_total/{dataset}/seg")
+        cfg.train.save_dir = os.path.join(f"../drive/MyDrive/only_sup_train/{dataset}")
+        cfg.train.wandb_log.append('test_miou')
+        cfg.project_name = "FullSupervision"
+        train(cfg)
+    
+    # VQPUnet  # small
+    percents = ["percent_30", "percent_20", "percent_10"]
+    for json in cfg_list:
+        for percent in percents:
+            cfg = get_config_from_json(json)
+            dataset = os.path.split(os.path.split(cfg.train.data_dir)[0])[-1]
+            cfg.train.data_dir = os.path.join(f"../data/semi_sup_data/{dataset}/{percent}")
+            cfg.train.save_dir = os.path.join(f"../drive/MyDrive/only_sup_train/{dataset}")
+            cfg.train.wandb_log.append('test_miou')
+            cfg.project_name = "SmallSupervision"
+            train(cfg)
