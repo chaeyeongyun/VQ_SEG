@@ -108,6 +108,9 @@ def train(cfg):
         # trainloader = iter(trainloader)
         model.train()
         crop_iou, weed_iou, back_iou = 0, 0, 0
+        sum_sup_loss = 0
+        sum_commitment_loss = 0
+        sum_prototype_loss = 0
         sum_loss = 0
         sum_miou = 0
         trainloader_iter = iter(trainloader)
@@ -122,11 +125,16 @@ def train(cfg):
             
             l_input = l_input.to(device)
             l_target = l_target.to(device)
+            
+            percent_unreliable = cfg.train.unsup_loss_drop_percent * (1-epoch/num_epochs)
+            drop_percent = 100 - percent_unreliable
             with torch.cuda.amp.autocast(enabled=half):
-                pred = model(l_input)[0]
-
+                pred, commitment_loss, code_usage, prototype_loss = model(l_input, l_target, percent=drop_percent)
+                if batch_idx == 0:
+                    sum_code_usage = torch.zeros_like(code_usage)
             with torch.cuda.amp.autocast(enabled=half):
-                loss = dice_loss(pred, l_target) + 0.5*ce_loss(pred, l_target)
+                sup_loss = dice_loss(pred, l_target) + 0.5*ce_loss(pred, l_target) 
+                loss = sup_loss + commitment_loss + prototype_loss
                 
                 ## learning rate update
                 current_idx = epoch * len(trainloader) + batch_idx
@@ -144,24 +152,33 @@ def train(cfg):
             step_miou, iou_list = measurement.miou(measurement._make_confusion_matrix(pred.detach().cpu().numpy(), l_target.detach().cpu().numpy()))
             sum_miou += step_miou
             sum_loss += loss.item()
-           
+            sum_code_usage += code_usage
+            sum_prototype_loss += prototype_loss.item()       
+            sum_commitment_loss += commitment_loss.item()    
+            sum_sup_loss += sup_loss.item()
             back_iou += iou_list[0]
             weed_iou += iou_list[1]
             crop_iou += iou_list[2]
             print_txt = f"[Epoch{epoch}/{cfg.train.num_epochs}][Iter{batch_idx+1}/{len(trainloader)}] lr={learning_rate:.5f}" \
-                            + f"miou={step_miou:.5f}, loss={loss.item():.4f}"
+                            + f"miou={step_miou}, sup_loss={sup_loss:.4f}, prototype_loss={prototype_loss.item():.4f}"
             pbar.set_description(print_txt, refresh=False)
             if logger != None:
                 log_txt.write(print_txt)
         
         lr_scheduler.step()
         ## end epoch ## 
+        code_usage = (sum_code_usage / len(trainloader)).tolist()
+        if isinstance(code_usage, float): code_usage = [code_usage]
         back_iou, weed_iou, crop_iou = back_iou / len(trainloader), weed_iou / len(trainloader), crop_iou / len(trainloader)
+        sup_loss = sum_sup_loss / len(trainloader)
+        commitment_loss = sum_commitment_loss / len(trainloader)
+        prototype_loss = sum_prototype_loss / len(trainloader)
         loss = sum_loss / len(trainloader)
         miou = sum_miou / len(trainloader)
         
         print_txt = f"[Epoch{epoch}]" \
-                            + f"miou={miou}, loss={loss:.4f}"
+                            + f"miou={miou:.4f}, sup_loss={sup_loss:.4f}, prototype_loss={prototype_loss:.4f}, commitment_loss={commitment_loss:.4f}"
+       
         print(print_txt)
         test_miou = test(testloader, model, measurement, cfg)
         print(f"test_miou : {test_miou:.4f}")
@@ -220,31 +237,25 @@ if __name__ == "__main__":
     # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
     # cfg_list = ['./config/CWFID_Unet.json', "./config/IJRR2017_Unet.json", "./config/rice_s_n_w_Unet.json"]
     
-    cfg_list = ["./config/CWFID_Unet.json", "./config/IJRR2017_Unet.json", "./config/rice_s_n_w_Unet.json"]
-    # Unet full
+    cfg_list = ["./config/vqreptunet1x1.json", "./config/vqreptunet1x1_IJRR2017.json", "./config/vqreptunet1x1_rice_s_n_w.json"]
+    # VQPUnet full
     for json in cfg_list:
         cfg = get_config_from_json(json)
+        dataset = os.path.split(os.path.split(cfg.train.data_dir)[0])[-1]
+        cfg.train.data_dir = os.path.join(f"../data/cropweed_total/{dataset}/seg")
+        cfg.train.save_dir = os.path.join(f"../drive/MyDrive/only_sup_train/{dataset}")
         cfg.train.wandb_log.append('test_miou')
         cfg.project_name = "FullSupervision"
         train(cfg)
     
-    # Unet  # small
+    # VQPUnet  # small
     percents = ["percent_30", "percent_20", "percent_10"]
     for json in cfg_list:
         for percent in percents:
             cfg = get_config_from_json(json)
-            # cfg.wandb_logging = False
-            # cfg.model = {
-            # "name":"unetoriginal",
-            # "params":{
-            #     "in_channels":3
-            #     }
-            # }
             dataset = os.path.split(os.path.split(cfg.train.data_dir)[0])[-1]
             cfg.train.data_dir = os.path.join(f"../data/semi_sup_data/{dataset}/{percent}")
+            cfg.train.save_dir = os.path.join(f"../drive/MyDrive/only_sup_train/{dataset}")
             cfg.train.wandb_log.append('test_miou')
             cfg.project_name = "SmallSupervision"
             train(cfg)
-        
-        
-   
