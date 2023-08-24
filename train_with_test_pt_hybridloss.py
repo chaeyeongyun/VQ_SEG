@@ -305,8 +305,11 @@ if __name__ == "__main__":
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     ########
-    # cfg.project_name = cfg.project_name + "_percent_30"
-    # train(cfg)
+    for percent in ["percent_20", "percent_10"]:
+        cfg.project_name = cfg.project_name + percent
+        root, p = os.path.split(cfg.train.data_dir)[:]
+        cfg.train.data_dir = os.path.join(root, percent)
+        train(cfg)
     # debug
     # cfg.train.half=False
     # cfg.train.device = -1
@@ -325,18 +328,20 @@ if __name__ == "__main__":
     # cfg.wandb_logging = False
     # cfg.model.params.encoder_weights = "imagenet"
     # IJRR2017 ###
-    cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = cfg.project_name + "_percent_30"
-    cfg.model.params.encoder_weights = None
-    train(cfg)
+    # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
+    # cfg.train.wandb_log.append('test_miou')
+    # cfg.project_name = cfg.project_name + "_percent_30"
+    # cfg.model.params.encoder_weights = None
+    # train(cfg)
     
     ## rice s n w ###
     cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = cfg.project_name + "_percent_30"
-    cfg.model.params.encoder_weights = None
-    train(cfg)
+    for percent in ["percent_20", "percent_10"]:
+        cfg.project_name = cfg.project_name + percent
+        root, p = os.path.split(cfg.train.data_dir)[:]
+        cfg.train.data_dir = os.path.join(root, percent)
+        train(cfg)
     
     # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     # cfg.model.params.encoder_weights = None
