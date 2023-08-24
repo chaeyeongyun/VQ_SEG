@@ -29,7 +29,7 @@ from test_detailviz import test as real_test
 
 from loss import make_loss
 from measurement import Measurement
-from warmup_scheduler import GradualWarmupScheduler
+
 
 def test(test_loader, model, measurement:Measurement, cfg):
     sum_miou = 0
