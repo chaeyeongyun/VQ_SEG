@@ -10,7 +10,6 @@ import os
 import argparse
 
 import copy
-from data.dataset import BaseDataset
 from utils.load_config import get_config_from_json
 from utils.device import device_setting
 from utils.visualize import make_test_detailed_img, save_img_list
@@ -210,7 +209,7 @@ def score_mask(pred, pseudo, th=0.7):
 def train(cfg):
     seed_everything()
     if cfg.wandb_logging:
-        logger_name = cfg.project_name+"_hybrid_norm_cont_"+str(len(os.listdir(cfg.train.save_dir)))
+        logger_name = cfg.project_name+"_hybrid_norm_"+str(len(os.listdir(cfg.train.save_dir)))
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
         ckpoints_dir = os.path.join(save_dir, 'ckpoints')
@@ -459,13 +458,19 @@ if __name__ == "__main__":
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
     cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = cfg.project_name + "_percent_30"
     cfg.model.params.encoder_weights = "imagenet"
     ### debug
     # cfg.resize=64
     # cfg.project_name = 'debug'
     # cfg.wandb_logging = False
     ########
-    train(cfg)
+    from copy import deepcopy
+    orgprojectname = deepcopy(cfg.project_name)
+    cfg.train.wandb_log.append('test_miou')
+    for percent in ["percent_20", "percent_10"]:
+        cfg.project_name = orgprojectname + percent
+        root, p = os.path.split(cfg.train.data_dir)[:]
+        cfg.train.data_dir = os.path.join(root, percent)
+        train(cfg)
     
 
