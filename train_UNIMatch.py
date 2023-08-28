@@ -100,7 +100,7 @@ def train(cfg):
     model = UniMatch(
         encoder_name="resnet50",
         num_classes=3,
-        encoder_weights="imagenet")
+        encoder_weights="imagenet").to(device)
     hard_aug = Cutmix()
     # initialize differently (segmentation head)
     if cfg.train.init_weights:
@@ -152,20 +152,20 @@ def train(cfg):
             l_input, l_target = sup_dict['img'], sup_dict['target']
             l_target = img_to_label(l_target, cfg.pixel_to_label)
             ul_input = unsup_dict['img']
+            l_input = l_input.to(device)
+            l_target = l_target.to(device)
+            ul_input = ul_input.to(device)
             
             with torch.no_grad():
                 model.eval()
                 pred_u = model(ul_input)[0].detach()
+                model.train()
             ul_mix_input_1, ul_mix_pred_1 = hard_aug(ul_input, pred_u)
             ul_mix_input_2, ul_mix_pred_2 = hard_aug(ul_input, pred_u)
-            model.train()
-            ## predict in supervised manner ##
-            optimizer.zero_grad()
-            l_input = l_input.to(device)
-            l_target = l_target.to(device)
-            ul_input = ul_input.to(device)
             ul_mix_input_1 = ul_mix_input_1.to(device)
             ul_mix_input_2 = ul_mix_input_2.to(device)
+            ## predict in supervised manner ##
+            optimizer.zero_grad()
 
             with torch.cuda.amp.autocast(enabled=half):
                 pred_l = model(l_input)[0]
@@ -279,7 +279,7 @@ if __name__ == "__main__":
             cfg.project_name = "UNIMatch"
             cfg.resize=32
             cfg.project_name = 'debug'
-            cfg.wandb_logging = False
+            # cfg.wandb_logging = False
             # cfg.train.device = -1
             # cfg.train.half = False
             train(cfg)
