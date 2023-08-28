@@ -265,8 +265,8 @@ if __name__ == "__main__":
                 cfg.model.params.pop(v)
             cfg.model.params.encoder_weights = "imagenet"
             cfg.project_name = "UNIMatch"
-            cfg.resize=32
-            cfg.project_name = 'debug'
+            # cfg.resize=32
+            # cfg.project_name = 'debug'
             # cfg.wandb_logging = False
             # cfg.train.device = -1
             # cfg.train.half = False
