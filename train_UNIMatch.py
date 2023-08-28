@@ -219,11 +219,7 @@ def train(cfg):
         if best_miou <= test_miou:
             best_miou = test_miou
             if logger is not None:
-                save_ckpoints(model.state_dict(),
-                            epoch,
-                            batch_idx,
-                            optimizer.state_dict(),
-                            os.path.join(ckpoints_dir, f"best_test_miou.pth"))
+                torch.save(model.state_dict(), os.path.join(ckpoints_dir, f"best_test_miou.pth"))
         
         if logger != None:
             log_txt.write(print_txt)
@@ -234,16 +230,8 @@ def train(cfg):
             if cfg.train.save_img:
                 save_img(img_dir, f'output_{epoch}ep.png', example)
             if epoch % 10 == 0:
-                save_ckpoints(model.state_dict(),
-                            epoch,
-                            batch_idx,
-                            optimizer.state_dict(),
-                            os.path.join(ckpoints_dir, f"{epoch}ep.pth"))
-            save_ckpoints(model.state_dict(),
-                        epoch,
-                        batch_idx,
-                        optimizer.state_dict(),
-                        os.path.join(ckpoints_dir, f"last.pth"))
+                torch.save(model.state_dict(), os.path.join(ckpoints_dir, f"{epoch}ep.pth"))
+            torch.save(model.state_dict(), os.path.join(ckpoints_dir, f"last.pth"))
             # wandb logging
             for key in logger.config_dict.keys():
                 logger.config_dict[key] = eval(key)
