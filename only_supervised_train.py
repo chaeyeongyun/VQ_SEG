@@ -101,6 +101,7 @@ def train(cfg):
     cps_loss_weight = cfg.train.cps_loss_weight
     total_commitment_loss_weight = cfg.train.total_commitment_loss_weight
     scaler = torch.cuda.amp.GradScaler(enabled=half)
+    best_miou = 0
     for epoch in range(num_epochs):
         trainloader = iter(sup_loader)
         crop_iou, weed_iou, back_iou = 0, 0, 0
@@ -111,6 +112,7 @@ def train(cfg):
         sum_miou = 0
         ep_start = time.time()
         pbar =  tqdm(range(len(sup_loader)))
+        model_1.train()
         for batch_idx in pbar:
             sup_dict = next(trainloader)
             l_input, l_target = sup_dict['img'], sup_dict['target']
@@ -181,6 +183,7 @@ def train(cfg):
         print(print_txt)
         test_miou = test(test_loader, model_1, measurement, cfg)
         print(f"test_miou : {test_miou:.4f}")
+        model_1.train()
         if best_miou <= test_miou:
             best_miou = test_miou
             if logger is not None:
