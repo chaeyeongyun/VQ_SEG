@@ -19,17 +19,32 @@ from utils.processing import detach_numpy
 from utils.visualize import make_example_img, save_img
 from utils.seg_tools import img_to_label
 from utils.lr_schedulers import WarmUpPolyLR, CosineAnnealingLR
-
+from test_detailviz import test as real_test
 
 from data.dataset import BaseDataset
 
 from loss import make_loss
 from measurement import Measurement
 
+def test(test_loader, model, measurement:Measurement, cfg):
+    sum_miou = 0
+    for data in tqdm(test_loader):
+        input_img, mask_img, filename = data['img'], data['target'], data['filename']
+        input_img = input_img.to(list(model.parameters())[0].device)
+        mask_cpu = img_to_label(mask_img, cfg.pixel_to_label).cpu().numpy()
+        model.eval()
+        with torch.no_grad():
+            pred = model(input_img)[0]
+        miou, _ = measurement.miou(measurement._make_confusion_matrix(pred.detach().cpu().numpy(), mask_cpu))
+        sum_miou += miou
+    miou = sum_miou / len(test_loader)
+    print(f'test miou : {miou}')
+    return miou
 # 일단 no cutmix version
 def train(cfg):
     if cfg.wandb_logging:
-        logger_name = cfg.project_name+str(len(os.listdir(cfg.train.save_dir)))
+        l =  cfg.train.data_dir.split('/')
+        logger_name = cfg.project_name+ "_" + l[-2] +"_" + l[-1] +"_"  + str(len(os.listdir(cfg.train.save_dir)))
         save_dir = os.path.join(cfg.train.save_dir, logger_name)
         os.makedirs(save_dir)
         ckpoints_dir = os.path.join(save_dir, 'ckpoints')
@@ -66,7 +81,8 @@ def train(cfg):
     sup_dataset = BaseDataset(os.path.join(cfg.train.data_dir, 'train'), split='labelled', resize=cfg.resize)
     
     sup_loader = DataLoader(sup_dataset, batch_size=batch_size, shuffle=True)
-    
+    test_dataset = BaseDataset(os.path.join(cfg.test.data_dir, 'test'), split='labelled', batch_size=1, resize=cfg.resize)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
     
     if cfg.train.lr_scheduler.name == 'warmuppoly':
         lr_sched_cfg = cfg.train.lr_scheduler
@@ -163,6 +179,14 @@ def train(cfg):
         print_txt = f"[Epoch{epoch}]" \
                             + f"miou={miou}, sup_loss={sup_loss:.4f}, commitment_loss={commitment_loss:.4f}, loss={loss:.4f}"
         print(print_txt)
+        test_miou = test(test_loader, model_1, measurement, cfg)
+        print(f"test_miou : {test_miou:.4f}")
+        if best_miou <= test_miou:
+            best_miou = test_miou
+            if logger is not None:
+                torch.save(model_1.state_dict(),
+                            os.path.join(ckpoints_dir, f"best_test_miou.pth"))
+                
         if logger != None:
             log_txt.write(print_txt)
             params = [l_input, l_target, pred_sup_1, None, None]
@@ -179,7 +203,7 @@ def train(cfg):
             # wandb logging
             for key in logger.config_dict.keys():
                 logger.config_dict[key] = eval(key)
-            for key in logger.log_dict.keys():
+            for key in ["loss", "learning_rate", "miou", "code_usage", "commitment_loss", "prototype_loss", "crop_iou", "weed_iou", "back_iou"]:
                 if key=="code_usage":
                     logger.temp_update(list_to_separate_log(l=eval(key), name=key))
                 else:logger.log_dict[key] = eval(key)
@@ -191,7 +215,9 @@ def train(cfg):
         logger.finish()
     if cfg.train.save_as_tar:
         save_tar(save_dir)
-    
+    cfg.test.weights = os.path.join(ckpoints_dir, "best_test_miou.pth")
+    real_test(cfg)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_path', default='./config/vqreptunet1x1.json')
@@ -204,18 +230,18 @@ if __name__ == "__main__":
     # cfg.train.half=False
     # cfg.resize = 256
     # train(cfg)
-    cfg.project_name = 'only_sup_percent30'+cfg.project_name
+    cfg.project_name = "Supervised"
     train(cfg)
    # IJRR2017 ###
     cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
     cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = 'only_sup_percent30'+cfg.project_name
-    # cfg.model.params.encoder_weights = "imagenet"
+    cfg.project_name = "Supervised"
+    cfg.model.params.encoder_weights = "imagenet"
     train(cfg)
     
     ## rice s n w ###
     cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
     cfg.train.wandb_log.append('test_miou')
-    cfg.project_name = 'only_sup_percent30'+cfg.project_name
+    cfg.project_name = "Supervised"
     # cfg.model.params.encoder_weights = "imagenet"
     train(cfg)
