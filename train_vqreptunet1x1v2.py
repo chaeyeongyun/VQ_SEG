@@ -234,19 +234,6 @@ def train(cfg):
         print_txt = f"[Epoch{epoch}]" \
                             + f"miou={miou:.4f}, sup_loss_1={sup_loss_1:.4f}, prototype_loss={prototype_loss:.4f}, cps_loss={cps_loss:.4f}, commitment_loss={commitment_loss:.4f}"
         print(print_txt)
-        test_miou = test(test_loader, model_1, measurement, cfg)
-        print(f"test_miou : {test_miou:.4f}")
-        if best_miou <= test_miou:
-            best_miou = test_miou
-            if logger is not None:
-                save_ckpoints(model_1.state_dict(),
-                            model_2.state_dict(),
-                            epoch,
-                            batch_idx,
-                            optimizer_1.state_dict(),
-                            optimizer_2.state_dict(),
-                            os.path.join(ckpoints_dir, f"best_test_miou.pth"))
-        
         if logger != None:
             log_txt.write(print_txt)
             params = [l_input, l_target, pred_sup_1, ul_input, pred_ul_1]
@@ -292,28 +279,4 @@ if __name__ == "__main__":
     # parser.add_argument('--config_path', default='./config/vqreptunetangular.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
-    # debug
-    # cfg.resize=64
-    # cfg.project_name = 'debug'
-    # cfg.wandb_logging = False
-    # cfg.train.half=False
-    # cfg.train.device = -1
-    # cfg.resize = 256
-    # train(cfg)
-    # cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
-    # cfg.train.criterion = "cross_entropy"
-    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
-    # train(cfg)
-    # cfg.model.params.encoder_weights = "imagenet_swsl"
-    # train(cfg)
-    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
-    # cfg.project_name = cfg.project_name+"_no_norm"
-    # cfg = get_config_from_json("./config/vqreptunet1x1_IJRR2017.json")
-    # cfg.train.wandb_log.append('test_miou')
-    # cfg.wandb_logging = False
-    # cfg.model.params.encoder_weights = "imagenet"
-    cfg.train.wandb_log.append('test_miou')
     train(cfg)
-    # cfg = get_config_from_json("./config/vqreptunet1x1_rice_s_n_w.json")
-    # cfg.model.params.encoder_weights = None
-    # train(cfg)

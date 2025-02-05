@@ -224,18 +224,4 @@ if __name__ == "__main__":
     parser.add_argument('--config_path', default='./config/vqcanet.json')
     opt = parser.parse_args()
     cfg = get_config_from_json(opt.config_path)
-    # debug
-    # cfg.resize=32
-    # cfg.project_name = 'debug'
-    # cfg.wandb_logging = False
-    # cfg.train.half=False
-    # cfg.resize = 256
-    # train(cfg)
-    # cfg = get_config_from_json('./config/cps_vqv2_cosinesim.json')
-    # cfg.train.criterion = "cross_entropy"
-    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 512, 512, 512]
-    # train(cfg)
-    # cfg.model.params.encoder_weights = "imagenet_swsl"
-    # train(cfg)
-    # cfg.model.params.vq_cfg.num_embeddings = [0, 0, 2048, 2048, 2048]
     train(cfg)
